@@ -1,72 +1,242 @@
--- Initial Schema for What Should I Wear App v2
-
--- 1. Profiles Table
-CREATE TABLE IF NOT EXISTS public.profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  display_name TEXT,
-  style_vibe TEXT DEFAULT 'Casual',
-  preferred_colors TEXT[] DEFAULT '{}',
-  location TEXT,
-  onboarding_completed BOOLEAN DEFAULT FALSE NOT NULL
+-- ===== Enums =====
+create type public.clothing_category as enum (
+  'top', 'bottom', 'outerwear', 'dress', 'shoes', 'accessory'
 );
 
--- Enable RLS for Profiles
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view their own profile" 
-  ON public.profiles FOR SELECT 
-  USING (auth.uid() = id);
-
-CREATE POLICY "Users can insert their own profile" 
-  ON public.profiles FOR INSERT 
-  WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Users can update their own profile" 
-  ON public.profiles FOR UPDATE 
-  USING (auth.uid() = id);
-
--- 2. Clothing Items Table
-CREATE TABLE IF NOT EXISTS public.clothing_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  name TEXT NOT NULL,
-  category TEXT NOT NULL CHECK (category IN ('top', 'bottom', 'outerwear', 'dress', 'shoes', 'accessory')),
-  color TEXT NOT NULL,
-  image_url TEXT NOT NULL,
-  cutout_url TEXT,
-  ai_tags JSONB DEFAULT '{}'::jsonb
+create type public.mannequin_preset as enum (
+  'neutral_light', 'neutral_medium', 'neutral_dark',
+  'curvy_light', 'curvy_medium', 'curvy_dark',
+  'slim_light', 'slim_medium', 'slim_dark'
 );
 
--- Enable RLS for Clothing Items
-ALTER TABLE public.clothing_items ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can manage their own clothing items" 
-  ON public.clothing_items FOR ALL 
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
-
--- 3. Outfits Table
-CREATE TABLE IF NOT EXISTS public.outfits (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT,
-  occasion TEXT,
-  weather_summary TEXT,
-  item_ids UUID[] NOT NULL,
-  is_favorite BOOLEAN DEFAULT FALSE NOT NULL,
-  ai_reasoning TEXT
+-- ===== Profiles =====
+create table public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  display_name text,
+  avatar_url text,
+  mannequin_preset public.mannequin_preset not null default 'neutral_medium',
+  onboarded_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
--- Enable RLS for Outfits
-ALTER TABLE public.outfits ENABLE ROW LEVEL SECURITY;
+alter table public.profiles enable row level security;
 
-CREATE POLICY "Users can manage their own outfits" 
-  ON public.outfits FOR ALL 
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+create policy "Users can view their own profile"
+  on public.profiles for select to authenticated
+  using (auth.uid() = id);
+
+create policy "Users can insert their own profile"
+  on public.profiles for insert to authenticated
+  with check (auth.uid() = id);
+
+create policy "Users can update their own profile"
+  on public.profiles for update to authenticated
+  using (auth.uid() = id);
+
+-- ===== Clothing Items =====
+create table public.clothing_items (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  category public.clothing_category not null,
+  color text,
+  name text,
+  image_url text not null,
+  cutout_url text,
+  ai_tags jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index clothing_items_user_idx on public.clothing_items(user_id, created_at desc);
+create index clothing_items_user_cat_idx on public.clothing_items(user_id, category);
+
+alter table public.clothing_items enable row level security;
+
+create policy "Users can view their own items"
+  on public.clothing_items for select to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users can insert their own items"
+  on public.clothing_items for insert to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "Users can update their own items"
+  on public.clothing_items for update to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users can delete their own items"
+  on public.clothing_items for delete to authenticated
+  using (auth.uid() = user_id);
+
+-- ===== Outfits =====
+create table public.outfits (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null default 'Untitled look',
+  mannequin_preset public.mannequin_preset not null default 'neutral_medium',
+  item_ids uuid[] not null default '{}',
+  generated_image_url text,
+  created_at timestamptz not null default now()
+);
+
+create index outfits_user_idx on public.outfits(user_id, created_at desc);
+
+alter table public.outfits enable row level security;
+
+create policy "Users can view their own outfits"
+  on public.outfits for select to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users can insert their own outfits"
+  on public.outfits for insert to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "Users can update their own outfits"
+  on public.outfits for update to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users can delete their own outfits"
+  on public.outfits for delete to authenticated
+  using (auth.uid() = user_id);
+
+-- ===== Collections =====
+create table public.collections (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  cover_outfit_id uuid references public.outfits(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create index collections_user_idx on public.collections(user_id, created_at desc);
+
+alter table public.collections enable row level security;
+
+create policy "Users can view their own collections"
+  on public.collections for select to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users can insert their own collections"
+  on public.collections for insert to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "Users can update their own collections"
+  on public.collections for update to authenticated
+  using (auth.uid() = user_id);
+
+create policy "Users can delete their own collections"
+  on public.collections for delete to authenticated
+  using (auth.uid() = user_id);
+
+-- ===== Collection <-> Outfits join =====
+create table public.collection_outfits (
+  collection_id uuid not null references public.collections(id) on delete cascade,
+  outfit_id uuid not null references public.outfits(id) on delete cascade,
+  added_at timestamptz not null default now(),
+  primary key (collection_id, outfit_id)
+);
+
+create index collection_outfits_outfit_idx on public.collection_outfits(outfit_id);
+
+alter table public.collection_outfits enable row level security;
+
+create policy "Users can view their own collection_outfits"
+  on public.collection_outfits for select to authenticated
+  using (
+    exists (select 1 from public.collections c
+            where c.id = collection_id and c.user_id = auth.uid())
+  );
+
+create policy "Users can insert their own collection_outfits"
+  on public.collection_outfits for insert to authenticated
+  with check (
+    exists (select 1 from public.collections c
+            where c.id = collection_id and c.user_id = auth.uid())
+    and exists (select 1 from public.outfits o
+            where o.id = outfit_id and o.user_id = auth.uid())
+  );
+
+create policy "Users can delete their own collection_outfits"
+  on public.collection_outfits for delete to authenticated
+  using (
+    exists (select 1 from public.collections c
+            where c.id = collection_id and c.user_id = auth.uid())
+  );
+
+-- ===== Functions & Triggers =====
+
+-- Auto-create profile on signup
+create or replace function public.handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.profiles (id, display_name, avatar_url)
+  values (
+    new.id,
+    coalesce(new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    new.raw_user_meta_data->>'avatar_url'
+  )
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+-- Generic updated_at trigger
+create or replace function public.touch_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create trigger profiles_touch_updated_at
+  before update on public.profiles
+  for each row execute function public.touch_updated_at();
+
+-- Lock down SECURITY DEFINER functions
+revoke execute on function public.handle_new_user() from public, anon, authenticated;
+revoke execute on function public.touch_updated_at() from public, anon, authenticated;
+
+-- ===== Storage =====
+insert into storage.buckets (id, name, public)
+values ('wardrobe', 'wardrobe', true)
+on conflict (id) do nothing;
+
+create policy "Users can list their own wardrobe files"
+  on storage.objects for select to authenticated
+  using (
+    bucket_id = 'wardrobe'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "Users can upload to their own wardrobe folder"
+  on storage.objects for insert to authenticated
+  with check (
+    bucket_id = 'wardrobe'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "Users can update files in their own wardrobe folder"
+  on storage.objects for update to authenticated
+  using (
+    bucket_id = 'wardrobe'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );
+
+create policy "Users can delete files in their own wardrobe folder"
+  on storage.objects for delete to authenticated
+  using (
+    bucket_id = 'wardrobe'
+    and auth.uid()::text = (storage.foldername(name))[1]
+  );

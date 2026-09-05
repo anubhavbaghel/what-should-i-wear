@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { ChevronRight, Loader2, Sparkles, Camera, Shirt } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { profileRepository } from "@/services/supabase/profile.repository";
+import type { MannequinPreset } from "@/domain/user";
 
 const PRESETS = [
   { id: "slim_light", label: "Slim · Light" },
@@ -51,15 +54,21 @@ function Step({
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
+  const { user, refreshProfile } = useAuth();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
-  const [preset, setPreset] = useState<string>("neutral_medium");
+  const [preset, setPreset] = useState<MannequinPreset>("neutral_medium");
   const [saving, setSaving] = useState(false);
 
   async function save(goAdd: boolean) {
+    if (!user) return;
     setSaving(true);
     try {
-      // Save onboarding data (would normally call a server function)
+      await profileRepository.completeOnboarding(user.id, {
+        display_name: name.trim() || undefined,
+        preset,
+      });
+      await refreshProfile();
       toast.success("You're all set ✦");
       navigate(goAdd ? "/closet/add" : "/closet", { replace: true });
     } catch (e) {
@@ -160,7 +169,7 @@ export default function OnboardingPage() {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setPreset(p.id)}
+                  onClick={() => setPreset(p.id as MannequinPreset)}
                   className="chip justify-center text-[12px]"
                   data-active={preset === p.id}
                 >

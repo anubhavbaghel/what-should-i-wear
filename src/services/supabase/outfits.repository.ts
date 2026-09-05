@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from "./client";
 import { Outfit } from "@/domain/outfit";
+import type { MannequinPreset } from "@/domain/user";
 
 let localOutfitsStore: Outfit[] = [];
 
@@ -21,15 +22,22 @@ export class OutfitsRepository {
 
   async saveOutfit(
     userId: string,
-    outfitData: Omit<Outfit, "id" | "user_id" | "created_at" | "is_favorite">
+    outfitData: {
+      name?: string;
+      item_ids: string[];
+      mannequin_preset?: MannequinPreset;
+      generated_image_url?: string | null;
+    }
   ): Promise<Outfit> {
     if (!isSupabaseConfigured) {
       const newOutfit: Outfit = {
         id: `outfit-${Date.now()}`,
         user_id: userId,
         created_at: new Date().toISOString(),
-        is_favorite: false,
-        ...outfitData,
+        name: outfitData.name ?? "New look",
+        mannequin_preset: outfitData.mannequin_preset ?? "neutral_medium",
+        item_ids: outfitData.item_ids,
+        generated_image_url: outfitData.generated_image_url,
       };
       localOutfitsStore.unshift(newOutfit);
       return newOutfit;
@@ -39,36 +47,16 @@ export class OutfitsRepository {
       .from("outfits")
       .insert({
         user_id: userId,
-        title: outfitData.title,
-        description: outfitData.description,
-        occasion: outfitData.occasion,
-        weather_summary: outfitData.weather_summary,
+        name: outfitData.name ?? "New look",
+        mannequin_preset: outfitData.mannequin_preset ?? "neutral_medium",
         item_ids: outfitData.item_ids,
-        ai_reasoning: outfitData.ai_reasoning,
-        is_favorite: false,
+        generated_image_url: outfitData.generated_image_url ?? null,
       })
       .select()
       .single();
 
     if (error) throw new Error(`Failed to save outfit: ${error.message}`);
     return data;
-  }
-
-  async toggleFavorite(userId: string, outfitId: string, currentStatus: boolean): Promise<void> {
-    if (!isSupabaseConfigured) {
-      localOutfitsStore = localOutfitsStore.map((o) =>
-        o.id === outfitId ? { ...o, is_favorite: !currentStatus } : o
-      );
-      return;
-    }
-
-    const { error } = await supabase
-      .from("outfits")
-      .update({ is_favorite: !currentStatus })
-      .eq("id", outfitId)
-      .eq("user_id", userId);
-
-    if (error) throw new Error(`Failed to toggle favorite: ${error.message}`);
   }
 
   async deleteOutfit(userId: string, outfitId: string): Promise<void> {

@@ -61,27 +61,25 @@ export default function OutfitDetailPage() {
         <>
           <div className="card-pop mt-4 overflow-hidden" style={{ background: "var(--mint-soft)" }}>
             <div className="aspect-[3/4]">
-              <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-                No preview
-              </div>
+              {outfit.generated_image_url ? (
+                <img src={outfit.generated_image_url} alt={outfit.name} className="h-full w-full object-cover" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+                  No preview
+                </div>
+              )}
             </div>
           </div>
 
           <div className="mt-6 flex items-start justify-between gap-4">
             <div>
-              <h1 className="display text-3xl text-foreground">{outfit.title}</h1>
+              <h1 className="display text-3xl text-foreground">{outfit.name}</h1>
               <p className="mt-1 text-sm font-medium text-muted-foreground">
                 {items.length} {items.length === 1 ? "piece" : "pieces"}
               </p>
             </div>
             <span className="sticker rotate-3" style={{ background: "var(--sun)" }}>saved</span>
           </div>
-
-          {outfit.ai_reasoning && (
-            <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
-              {outfit.ai_reasoning}
-            </p>
-          )}
 
           {items.length > 0 && (
             <section className="mt-6">

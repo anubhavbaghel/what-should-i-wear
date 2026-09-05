@@ -4,15 +4,11 @@ import { Garment } from "./garment";
 export interface Outfit {
   id: string;
   user_id: string;
-  created_at: string;
-  title: string;
-  description?: string;
-  occasion?: string;
-  weather_summary?: string;
+  name: string;
+  mannequin_preset: string;
   item_ids: string[];
-  items?: Garment[];
-  is_favorite: boolean;
-  ai_reasoning?: string;
+  generated_image_url?: string | null;
+  created_at: string;
 }
 
 export const GenerateOutfitParamsSchema = z.object({

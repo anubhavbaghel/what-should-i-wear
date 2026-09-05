@@ -20,8 +20,10 @@ const queryClient = new QueryClient({
 });
 
 function AuthGuard() {
-  const { user, loading } = useAuth();
+  const { user, loading, profile } = useAuth();
   const { pathname } = useLocation();
+
+  const ONBOARDING_BYPASS = ["/onboarding"];
 
   if (loading) {
     return (
@@ -35,6 +37,11 @@ function AuthGuard() {
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: pathname }} />;
+  }
+
+  // Redirect to onboarding if profile exists but not onboarded
+  if (profile && !profile.onboarded_at && !ONBOARDING_BYPASS.includes(pathname)) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   const hideTabBar = pathname === "/onboarding";

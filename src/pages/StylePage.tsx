@@ -9,6 +9,7 @@ import { outfitsRepository } from "@/services/supabase/outfits.repository";
 import { aiService } from "@/services/ai/ai.service";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
+import type { MannequinPreset } from "@/domain/user";
 
 const CATEGORY_GROUPS = [
   { id: "top", label: "Tops" },
@@ -43,7 +44,7 @@ export default function StylePage() {
   });
 
   const [selected, setSelected] = useState<string[]>([]);
-  const [preset, setPreset] = useState<string>("neutral_medium");
+  const [preset, setPreset] = useState<MannequinPreset>("neutral_medium");
   const [generating, setGenerating] = useState(false);
 
   const grouped = useMemo(() => {
@@ -73,12 +74,9 @@ export default function StylePage() {
       });
 
       const outfit = await outfitsRepository.saveOutfit(user?.id ?? "demo", {
-        title: recommendation.title,
-        description: recommendation.description,
-        occasion: recommendation.occasion,
-        weather_summary: recommendation.weather_summary,
+        name: recommendation.title,
         item_ids: recommendation.selected_item_ids,
-        ai_reasoning: recommendation.ai_reasoning,
+        mannequin_preset: preset,
       });
 
       await qc.invalidateQueries({ queryKey: ["outfits"] });

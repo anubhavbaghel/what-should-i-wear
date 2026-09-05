@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { LogOut } from "lucide-react";
 import { supabase } from "@/services/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { profileRepository } from "@/services/supabase/profile.repository";
+import type { MannequinPreset } from "@/domain/user";
 
 const PRESETS = [
   { id: "slim_light", label: "Slim · Light" },
@@ -19,8 +21,12 @@ const PRESETS = [
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [currentPreset, setCurrentPreset] = useState("neutral_medium");
+  const { user, profile, refreshProfile } = useAuth();
+  const [currentPreset, setCurrentPreset] = useState<MannequinPreset>("neutral_medium");
+
+  useEffect(() => {
+    if (profile?.mannequin_preset) setCurrentPreset(profile.mannequin_preset);
+  }, [profile]);
 
   const userName =
     (user?.user_metadata?.full_name as string | undefined) ??
@@ -28,6 +34,18 @@ export default function ProfilePage() {
     "Stylish you";
   const userEmail = user?.email ?? "";
   const userAvatar = (user?.user_metadata?.avatar_url as string | undefined) ?? null;
+
+  async function pickPreset(p: MannequinPreset) {
+    if (!user) return;
+    try {
+      await profileRepository.updateMannequinPreset(user.id, p);
+      setCurrentPreset(p);
+      await refreshProfile();
+      toast.success("Figure updated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save.");
+    }
+  }
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -75,10 +93,7 @@ export default function ProfilePage() {
           {PRESETS.map((p) => (
             <button
               key={p.id}
-              onClick={() => {
-                setCurrentPreset(p.id);
-                toast.success("Figure updated");
-              }}
+              onClick={() => pickPreset(p.id as MannequinPreset)}
               className="chip"
               data-active={currentPreset === p.id}
               type="button"

@@ -67,7 +67,7 @@ export default function OutfitsPage() {
                   </div>
                 </div>
                 <div className="border-t-[1.5px] border-ink bg-card px-3 py-2">
-                  <p className="truncate text-sm font-semibold text-foreground">{o.title}</p>
+                  <p className="truncate text-sm font-semibold text-foreground">{o.name}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
                     {o.item_ids.length} {o.item_ids.length === 1 ? "piece" : "pieces"}
                   </p>

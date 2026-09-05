@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "@/services/supabase/client";
+import { profileRepository } from "@/services/supabase/profile.repository";
+import type { UserProfile, MannequinPreset } from "@/domain/user";
 
 const DEMO_USER: User = {
   id: "demo-user-id",
@@ -24,8 +26,10 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   isDemo: boolean;
+  profile: UserProfile | null;
   signInDemo: () => void;
   signOutDemo: () => void;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState>({
@@ -33,8 +37,10 @@ const AuthContext = createContext<AuthState>({
   user: null,
   loading: true,
   isDemo: false,
+  profile: null,
   signInDemo: () => {},
   signOutDemo: () => {},
+  refreshProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -43,9 +49,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     user: null,
     loading: true,
     isDemo: false,
+    profile: null,
     signInDemo: () => {},
     signOutDemo: () => {},
+    refreshProfile: async () => {},
   });
+
+  const fetchProfile = useCallback(async (userId: string) => {
+    try {
+      const profile = await profileRepository.getProfile(userId);
+      setState((s) => ({ ...s, profile }));
+    } catch (e) {
+      console.error("Failed to fetch profile:", e);
+    }
+  }, []);
 
   const signInDemo = useCallback(() => {
     setState((s) => ({
@@ -63,9 +80,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session: null,
       user: null,
       isDemo: false,
+      profile: null,
       loading: false,
     }));
   }, []);
+
+  const refreshProfile = useCallback(async () => {
+    const userId = state.user?.id;
+    if (userId) await fetchProfile(userId);
+  }, [state.user?.id, fetchProfile]);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -74,34 +97,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading: false,
         signInDemo,
         signOutDemo,
+        refreshProfile,
       }));
       return;
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
+      const user = session?.user ?? null;
       setState((s) => ({
         ...s,
         session,
-        user: session?.user ?? null,
+        user,
         loading: false,
         signInDemo,
         signOutDemo,
+        refreshProfile,
       }));
+      if (user) fetchProfile(user.id);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      const user = session?.user ?? null;
       setState((s) => ({
         ...s,
         session,
-        user: session?.user ?? null,
+        user,
         loading: false,
       }));
+      if (user) fetchProfile(user.id);
     });
 
     return () => subscription.unsubscribe();
-  }, [signInDemo, signOutDemo]);
+  }, [signInDemo, signOutDemo, fetchProfile, refreshProfile]);
 
   return <AuthContext.Provider value={state}>{children}</AuthContext.Provider>;
 }
