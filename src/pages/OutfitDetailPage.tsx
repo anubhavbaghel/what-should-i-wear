@@ -1,0 +1,119 @@
+import { useNavigate, useParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { ChevronLeft, Trash2 } from "lucide-react";
+import { outfitsRepository } from "@/services/supabase/outfits.repository";
+import { closetRepository } from "@/services/supabase/closet.repository";
+import { useAuth } from "@/lib/auth-context";
+
+export default function OutfitDetailPage() {
+  const { outfitId } = useParams<{ outfitId: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const qc = useQueryClient();
+  const userId = user?.id ?? "demo";
+
+  const { data: outfit, isLoading } = useQuery({
+    queryKey: ["outfit", outfitId],
+    queryFn: async () => {
+      if (!outfitId) return null;
+      const outfits = await outfitsRepository.getOutfits(userId);
+      return outfits.find((o) => o.id === outfitId) ?? null;
+    },
+    enabled: !!outfitId,
+  });
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["outfit-items", outfit?.item_ids],
+    queryFn: async () => {
+      if (!outfit?.item_ids?.length) return [];
+      const all = await closetRepository.getGarments(userId);
+      return all.filter((g) => outfit.item_ids.includes(g.id));
+    },
+    enabled: !!outfit?.item_ids?.length,
+  });
+
+  async function onDelete() {
+    if (!outfitId) return;
+    if (!confirm("Delete this look?")) return;
+    try {
+      await outfitsRepository.deleteOutfit(userId, outfitId);
+      await qc.invalidateQueries({ queryKey: ["outfits"] });
+      toast.success("Deleted");
+      navigate("/outfits");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't delete.");
+    }
+  }
+
+  return (
+    <div className="px-5 pt-10 pb-32">
+      <button
+        onClick={() => navigate("/outfits")}
+        className="-ml-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-ink"
+      >
+        <ChevronLeft className="h-4 w-4" /> Outfits
+      </button>
+
+      {isLoading || !outfit ? (
+        <div className="mt-6 aspect-[3/4] animate-pulse rounded-3xl border-[1.5px] border-ink/20 bg-muted" />
+      ) : (
+        <>
+          <div className="card-pop mt-4 overflow-hidden" style={{ background: "var(--mint-soft)" }}>
+            <div className="aspect-[3/4]">
+              <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
+                No preview
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-start justify-between gap-4">
+            <div>
+              <h1 className="display text-3xl text-foreground">{outfit.title}</h1>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">
+                {items.length} {items.length === 1 ? "piece" : "pieces"}
+              </p>
+            </div>
+            <span className="sticker rotate-3" style={{ background: "var(--sun)" }}>saved</span>
+          </div>
+
+          {outfit.ai_reasoning && (
+            <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
+              {outfit.ai_reasoning}
+            </p>
+          )}
+
+          {items.length > 0 && (
+            <section className="mt-6">
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                Pieces in this look
+              </p>
+              <div className="grid grid-cols-4 gap-2">
+                {items.map((it) => (
+                  <div
+                    key={it.id}
+                    className="aspect-square overflow-hidden rounded-xl border-[1.5px] border-ink bg-card"
+                  >
+                    <img
+                      src={it.cutout_url ?? it.image_url}
+                      alt={it.name ?? ""}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <button
+            onClick={onDelete}
+            className="btn-pop mt-8 w-full py-4 text-sm"
+            data-tone="paper"
+          >
+            <Trash2 className="h-4 w-4" /> Delete
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
