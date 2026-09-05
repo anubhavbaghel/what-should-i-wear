@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import { Plus, Camera } from "lucide-react";
@@ -37,11 +39,7 @@ function Skeleton() {
   return (
     <ul className="grid auto-rows-[110px] grid-cols-3 gap-3">
       {BENTO_PATTERN.map((span, i) => (
-        <li
-          key={i}
-          className={cn("animate-pulse rounded-2xl border-[1.5px] border-ink/20 bg-muted", span)}
-          style={{ animationDelay: `${i * 80}ms` }}
-        />
+        <li key={i} className={cn("animate-pulse rounded-2xl border-[1.5px] border-ink/20 bg-muted", span)} style={{ animationDelay: `${i * 80}ms` }} />
       ))}
     </ul>
   );
@@ -60,9 +58,9 @@ function Empty({ hasAny, filter }: { hasAny: boolean; filter: string }) {
       <span className="sticker rotate-3" style={{ background: "var(--pink)" }}>start here</span>
       <h2 className="display mt-5 text-3xl text-foreground">One piece is all it takes</h2>
       <p className="mx-auto mt-2 max-w-[28ch] text-sm text-muted-foreground">
-        Scan a top, those jeans, your fave sneakers — we'll handle the rest.
+        Scan a top, those jeans, your fave sneakers — we&apos;ll handle the rest.
       </p>
-      <Link to="/closet/add" className="btn-pop mt-6 px-6 py-3 text-sm" data-tone="pink">
+      <Link href="/closet/add" className="btn-pop mt-6 px-6 py-3 text-sm" data-tone="pink">
         <Camera className="h-4 w-4" /> Scan first piece
       </Link>
     </div>
@@ -100,17 +98,10 @@ export default function ClosetPage() {
           <span className="sticker -rotate-2">{greeting}</span>
           <h1 className="display mt-3 text-[2.4rem] text-foreground">
             Your{" "}
-            <span className="inline-block rotate-1 rounded-xl border-[1.5px] border-ink px-2" style={{ background: "var(--pink)" }}>
-              closet
-            </span>
+            <span className="inline-block rotate-1 rounded-xl border-[1.5px] border-ink px-2" style={{ background: "var(--pink)" }}>closet</span>
           </h1>
         </div>
-        <Link
-          to="/closet/add"
-          className="btn-pop h-12 w-12 shrink-0 p-0"
-          data-tone="sun"
-          aria-label="Add clothing"
-        >
+        <Link href="/closet/add" className="btn-pop h-12 w-12 shrink-0 p-0" data-tone="sun" aria-label="Add clothing">
           <Plus className="h-5 w-5" strokeWidth={2.5} />
         </Link>
       </header>
@@ -118,12 +109,7 @@ export default function ClosetPage() {
       <div className="-mx-5 mt-6 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex gap-2 pb-2">
           {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFilter(f.id)}
-              className="chip shrink-0"
-              data-active={filter === f.id}
-            >
+            <button key={f.id} onClick={() => setFilter(f.id)} className="chip shrink-0" data-active={filter === f.id}>
               {f.label}
             </button>
           ))}
@@ -141,30 +127,13 @@ export default function ClosetPage() {
               const span = BENTO_PATTERN[i % BENTO_PATTERN.length];
               const tone = TONES[i % TONES.length];
               return (
-                <motion.li
-                  key={item.id}
-                  className={cn(span)}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3, delay: i * 0.03 }}
-                >
-                  <Link
-                    to={`/closet/${item.id}`}
-                    className="card-pop group flex h-full w-full flex-col overflow-hidden"
-                    style={{ background: tone }}
-                  >
+                <motion.li key={item.id} className={cn(span)} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: i * 0.03 }}>
+                  <Link href={`/closet/${item.id}`} className="card-pop group flex h-full w-full flex-col overflow-hidden" style={{ background: tone }}>
                     <div className="relative flex-1 overflow-hidden">
-                      <img
-                        src={item.cutout_url ?? item.image_url}
-                        alt={item.name ?? item.category}
-                        className="absolute inset-0 h-full w-full object-cover transition-transform group-active:scale-95"
-                        loading="lazy"
-                      />
+                      <img src={item.cutout_url ?? item.image_url} alt={item.name ?? item.category} className="absolute inset-0 h-full w-full object-cover transition-transform group-active:scale-95" loading="lazy" />
                     </div>
                     <div className="border-t-[1.5px] border-ink bg-card px-2.5 py-1.5">
-                      <p className="truncate text-[12px] font-semibold text-foreground">
-                        {item.name ?? labelForCategory(item.category)}
-                      </p>
+                      <p className="truncate text-[12px] font-semibold text-foreground">{item.name ?? labelForCategory(item.category)}</p>
                     </div>
                   </Link>
                 </motion.li>

@@ -1,8 +1,11 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { supabase, isSupabaseConfigured } from "@/services/supabase/client";
 import { useAuth } from "@/lib/auth-context";
+import { Suspense } from "react";
 
 function GoogleMark() {
   return (
@@ -15,14 +18,18 @@ function GoogleMark() {
   );
 }
 
-export default function LoginPage() {
-  const navigate = useNavigate();
+function LoginPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, signInDemo } = useAuth();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user) navigate("/closet", { replace: true });
-  }, [user, navigate]);
+    if (user) {
+      const redirect = searchParams.get("redirect") || "/closet";
+      router.replace(redirect);
+    }
+  }, [user, router, searchParams]);
 
   async function signInWithGoogle() {
     if (!isSupabaseConfigured) {
@@ -50,26 +57,12 @@ export default function LoginPage() {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background px-6 pt-12 pb-10 flex flex-col">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-20 -right-16 h-64 w-64 rounded-full"
-        style={{ background: "var(--pink)" }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-32 -left-20 h-44 w-44 rounded-full"
-        style={{ background: "var(--mint)" }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute bottom-44 right-6 h-24 w-24 rounded-full"
-        style={{ background: "var(--sun)" }}
-      />
+      <div aria-hidden className="pointer-events-none absolute -top-20 -right-16 h-64 w-64 rounded-full" style={{ background: "var(--pink)" }} />
+      <div aria-hidden className="pointer-events-none absolute top-32 -left-20 h-44 w-44 rounded-full" style={{ background: "var(--mint)" }} />
+      <div aria-hidden className="pointer-events-none absolute bottom-44 right-6 h-24 w-24 rounded-full" style={{ background: "var(--sun)" }} />
 
       <header className="relative z-10 flex items-center gap-2">
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-ink bg-card text-[12px] font-bold">
-          ✦
-        </span>
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border-[1.5px] border-ink bg-card text-[12px] font-bold">✦</span>
         <span className="text-sm font-semibold tracking-tight">what to wear today?</span>
       </header>
 
@@ -77,17 +70,10 @@ export default function LoginPage() {
         <span className="sticker -rotate-3">new fit, who dis</span>
         <h1 className="display mt-4 text-[3.5rem] leading-[0.9] text-foreground">
           Hi{" "}
-          <span
-            className="inline-block -rotate-2 rounded-2xl border-[1.5px] border-ink bg-card px-3 py-0.5"
-            style={{ background: "var(--sun)" }}
-          >
-            cutie
-          </span>
+          <span className="inline-block -rotate-2 rounded-2xl border-[1.5px] border-ink bg-card px-3 py-0.5" style={{ background: "var(--sun)" }}>cutie</span>
           <br />
           dress{" "}
-          <em className="not-italic" style={{ color: "var(--pink)" }}>
-            up.
-          </em>
+          <em className="not-italic" style={{ color: "var(--pink)" }}>up.</em>
         </h1>
         <p className="mt-5 max-w-[28ch] text-[15px] leading-relaxed text-muted-foreground">
           Scan your closet, mix looks on a mannequin, save the fits you love.
@@ -95,12 +81,7 @@ export default function LoginPage() {
       </section>
 
       <div className="relative z-10 space-y-3">
-        <button
-          onClick={signInWithGoogle}
-          disabled={loading}
-          className="btn-pop w-full py-4 text-base disabled:opacity-60"
-          data-tone="paper"
-        >
+        <button onClick={signInWithGoogle} disabled={loading} className="btn-pop w-full py-4 text-base disabled:opacity-60" data-tone="paper">
           <GoogleMark />
           {loading ? "Opening Google…" : isSupabaseConfigured ? "Continue with Google" : "Enter demo mode"}
         </button>
@@ -109,5 +90,13 @@ export default function LoginPage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginPageInner />
+    </Suspense>
   );
 }

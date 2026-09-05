@@ -1,4 +1,6 @@
-import { useNavigate, useParams } from "react-router-dom";
+"use client";
+
+import { useRouter, useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronLeft, Trash2 } from "lucide-react";
@@ -7,7 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function ItemDetailPage() {
   const { itemId } = useParams<{ itemId: string }>();
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
@@ -24,7 +26,7 @@ export default function ItemDetailPage() {
       await closetRepository.deleteGarment(user?.id ?? "demo", item.id);
       await queryClient.invalidateQueries({ queryKey: ["closet"] });
       toast.success("Removed");
-      navigate("/closet");
+      router.push("/closet");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not delete.");
     }
@@ -32,43 +34,24 @@ export default function ItemDetailPage() {
 
   return (
     <div className="px-5 pt-10 pb-32">
-      <button
-        onClick={() => navigate("/closet")}
-        className="-ml-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-ink"
-      >
+      <button onClick={() => router.push("/closet")} className="-ml-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-ink">
         <ChevronLeft className="h-4 w-4" /> Closet
       </button>
-
       {isLoading || !item ? (
         <div className="mt-6 aspect-square animate-pulse rounded-3xl border-[1.5px] border-ink/20 bg-muted" />
       ) : (
         <>
           <div className="card-pop mt-4 overflow-hidden" style={{ background: "var(--pink-soft)" }}>
-            <div className="aspect-square">
-              <img
-                src={item.cutout_url ?? item.image_url}
-                alt={item.name ?? ""}
-                className="h-full w-full object-cover"
-              />
-            </div>
+            <div className="aspect-square"><img src={item.cutout_url ?? item.image_url} alt={item.name ?? ""} className="h-full w-full object-cover" /></div>
           </div>
           <div className="mt-6 flex items-start justify-between gap-4">
             <div>
               <h1 className="display text-3xl text-foreground">{item.name}</h1>
-              <p className="mt-1 text-sm font-medium text-muted-foreground">
-                {item.color} · {item.category}
-              </p>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">{item.color} · {item.category}</p>
             </div>
             <span className="sticker rotate-3" style={{ background: "var(--sun)" }}>in closet</span>
           </div>
-
-          <button
-            onClick={onDelete}
-            className="btn-pop mt-8 w-full py-4 text-sm"
-            data-tone="paper"
-          >
-            <Trash2 className="h-4 w-4" /> Delete
-          </button>
+          <button onClick={onDelete} className="btn-pop mt-8 w-full py-4 text-sm" data-tone="paper"><Trash2 className="h-4 w-4" /> Delete</button>
         </>
       )}
     </div>

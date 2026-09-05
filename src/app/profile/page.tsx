@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { LogOut } from "lucide-react";
 import { supabase } from "@/services/supabase/client";
@@ -20,7 +22,7 @@ const PRESETS = [
 ] as const;
 
 export default function ProfilePage() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user, profile, refreshProfile } = useAuth();
   const [currentPreset, setCurrentPreset] = useState<MannequinPreset>("neutral_medium");
 
@@ -28,10 +30,7 @@ export default function ProfilePage() {
     if (profile?.mannequin_preset) setCurrentPreset(profile.mannequin_preset);
   }, [profile]);
 
-  const userName =
-    (user?.user_metadata?.full_name as string | undefined) ??
-    (user?.user_metadata?.name as string | undefined) ??
-    "Stylish you";
+  const userName = (user?.user_metadata?.full_name as string | undefined) ?? (user?.user_metadata?.name as string | undefined) ?? "Stylish you";
   const userEmail = user?.email ?? "";
   const userAvatar = (user?.user_metadata?.avatar_url as string | undefined) ?? null;
 
@@ -50,64 +49,32 @@ export default function ProfilePage() {
   async function signOut() {
     await supabase.auth.signOut();
     toast.success("Signed out");
-    navigate("/login", { replace: true });
+    router.push("/login");
   }
 
   return (
     <div className="px-5 pt-10 pb-32">
       <header>
         <span className="sticker -rotate-2">account</span>
-        <h1 className="display mt-3 text-[2.4rem] text-foreground">
-          Your{" "}
-          <span className="inline-block -rotate-1 rounded-xl border-[1.5px] border-ink px-2" style={{ background: "var(--pink)" }}>
-            profile
-          </span>
-        </h1>
+        <h1 className="display mt-3 text-[2.4rem] text-foreground">Your <span className="inline-block -rotate-1 rounded-xl border-[1.5px] border-ink px-2" style={{ background: "var(--pink)" }}>profile</span></h1>
       </header>
-
-      <section
-        className="card-pop mt-8 flex items-center gap-4 p-5"
-        style={{ background: "var(--mint-soft)" }}
-      >
+      <section className="card-pop mt-8 flex items-center gap-4 p-5" style={{ background: "var(--mint-soft)" }}>
         <div className="h-14 w-14 overflow-hidden rounded-full border-[1.5px] border-ink bg-card">
-          {userAvatar ? (
-            <img src={userAvatar} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-lg font-bold">
-              {userName?.[0]?.toUpperCase() ?? "✦"}
-            </div>
-          )}
+          {userAvatar ? (<img src={userAvatar} alt="" className="h-full w-full object-cover" />) : (<div className="flex h-full w-full items-center justify-center text-lg font-bold">{userName?.[0]?.toUpperCase() ?? "✦"}</div>)}
         </div>
         <div className="min-w-0">
           <p className="truncate font-semibold text-foreground">{userName}</p>
           <p className="truncate text-sm text-muted-foreground">{userEmail}</p>
         </div>
       </section>
-
       <section className="mt-8">
         <h2 className="display text-lg text-foreground">Default figure</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          We'll use this as the mannequin for new looks.
-        </p>
+        <p className="mt-1 text-xs text-muted-foreground">We&apos;ll use this as the mannequin for new looks.</p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => pickPreset(p.id as MannequinPreset)}
-              className="chip"
-              data-active={currentPreset === p.id}
-              type="button"
-            >
-              {p.label}
-            </button>
-          ))}
+          {PRESETS.map((p) => (<button key={p.id} onClick={() => pickPreset(p.id as MannequinPreset)} className="chip" data-active={currentPreset === p.id} type="button">{p.label}</button>))}
         </div>
       </section>
-
-      <button onClick={signOut} className="btn-pop mt-10 w-full py-4 text-sm" data-tone="paper">
-        <LogOut className="h-4 w-4" /> Sign out
-      </button>
-
+      <button onClick={signOut} className="btn-pop mt-10 w-full py-4 text-sm" data-tone="paper"><LogOut className="h-4 w-4" /> Sign out</button>
       <p className="mt-10 text-center text-xs text-muted-foreground">✦ what to wear today?</p>
     </div>
   );

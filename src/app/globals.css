@@ -2,13 +2,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/*
- * "What to Wear Today?" — Playful, vibrant, premium.
- * Sorbet palette: cream paper, hot pink, mint, sunny yellow + deep ink.
- * Outfit (display) + Figtree (body). Bento layouts, sticker chips,
- * chunky pill buttons, color-block accents.
- */
-
 @theme inline {
   --font-display: "Outfit", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Figtree", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -38,7 +31,6 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* Brand color aliases */
   --color-ink: var(--ink);
   --color-paper: var(--paper);
   --color-pink: var(--pink);
@@ -50,21 +42,19 @@
 :root {
   --radius: 1.125rem;
 
-  /* Sorbet pop palette */
-  --paper: oklch(0.975 0.012 40);          /* #FFF6F1 cream */
-  --ink: oklch(0.16 0.012 280);            /* deep plum-black */
-  --pink: oklch(0.75 0.18 5);              /* #FF7AB6 hot pink */
+  --paper: oklch(0.975 0.012 40);
+  --ink: oklch(0.16 0.012 280);
+  --pink: oklch(0.75 0.18 5);
   --pink-soft: oklch(0.93 0.06 5);
-  --mint: oklch(0.82 0.14 165);            /* #3DD9B0 mint */
+  --mint: oklch(0.82 0.14 165);
   --mint-soft: oklch(0.94 0.05 165);
-  --sun: oklch(0.89 0.16 90);              /* #FFD23F sunny yellow */
+  --sun: oklch(0.89 0.16 90);
   --sun-soft: oklch(0.96 0.06 90);
   --grape: oklch(0.55 0.18 295);
 
-  /* Semantic mapping */
   --background: var(--paper);
   --foreground: var(--ink);
-  --card: oklch(1 0 0);                    /* crisp white cards pop on cream */
+  --card: oklch(1 0 0);
   --card-foreground: var(--ink);
   --popover: oklch(1 0 0);
   --popover-foreground: var(--ink);

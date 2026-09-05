@@ -1,4 +1,6 @@
-import { useNavigate, useParams } from "react-router-dom";
+"use client";
+
+import { useRouter, useParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ChevronLeft, Trash2 } from "lucide-react";
@@ -8,7 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function OutfitDetailPage() {
   const { outfitId } = useParams<{ outfitId: string }>();
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   const qc = useQueryClient();
   const userId = user?.id ?? "demo";
@@ -40,7 +42,7 @@ export default function OutfitDetailPage() {
       await outfitsRepository.deleteOutfit(userId, outfitId);
       await qc.invalidateQueries({ queryKey: ["outfits"] });
       toast.success("Deleted");
-      navigate("/outfits");
+      router.push("/outfits");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't delete.");
     }
@@ -48,68 +50,34 @@ export default function OutfitDetailPage() {
 
   return (
     <div className="px-5 pt-10 pb-32">
-      <button
-        onClick={() => navigate("/outfits")}
-        className="-ml-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-ink"
-      >
+      <button onClick={() => router.push("/outfits")} className="-ml-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-ink">
         <ChevronLeft className="h-4 w-4" /> Outfits
       </button>
-
       {isLoading || !outfit ? (
         <div className="mt-6 aspect-[3/4] animate-pulse rounded-3xl border-[1.5px] border-ink/20 bg-muted" />
       ) : (
         <>
           <div className="card-pop mt-4 overflow-hidden" style={{ background: "var(--mint-soft)" }}>
             <div className="aspect-[3/4]">
-              {outfit.generated_image_url ? (
-                <img src={outfit.generated_image_url} alt={outfit.name} className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">
-                  No preview
-                </div>
-              )}
+              {outfit.generated_image_url ? (<img src={outfit.generated_image_url} alt={outfit.name} className="h-full w-full object-cover" />) : (<div className="flex h-full w-full items-center justify-center text-sm text-muted-foreground">No preview</div>)}
             </div>
           </div>
-
           <div className="mt-6 flex items-start justify-between gap-4">
             <div>
               <h1 className="display text-3xl text-foreground">{outfit.name}</h1>
-              <p className="mt-1 text-sm font-medium text-muted-foreground">
-                {items.length} {items.length === 1 ? "piece" : "pieces"}
-              </p>
+              <p className="mt-1 text-sm font-medium text-muted-foreground">{items.length} {items.length === 1 ? "piece" : "pieces"}</p>
             </div>
             <span className="sticker rotate-3" style={{ background: "var(--sun)" }}>saved</span>
           </div>
-
           {items.length > 0 && (
             <section className="mt-6">
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-                Pieces in this look
-              </p>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">Pieces in this look</p>
               <div className="grid grid-cols-4 gap-2">
-                {items.map((it) => (
-                  <div
-                    key={it.id}
-                    className="aspect-square overflow-hidden rounded-xl border-[1.5px] border-ink bg-card"
-                  >
-                    <img
-                      src={it.cutout_url ?? it.image_url}
-                      alt={it.name ?? ""}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                ))}
+                {items.map((it) => (<div key={it.id} className="aspect-square overflow-hidden rounded-xl border-[1.5px] border-ink bg-card"><img src={it.cutout_url ?? it.image_url} alt={it.name ?? ""} className="h-full w-full object-cover" /></div>))}
               </div>
             </section>
           )}
-
-          <button
-            onClick={onDelete}
-            className="btn-pop mt-8 w-full py-4 text-sm"
-            data-tone="paper"
-          >
-            <Trash2 className="h-4 w-4" /> Delete
-          </button>
+          <button onClick={onDelete} className="btn-pop mt-8 w-full py-4 text-sm" data-tone="paper"><Trash2 className="h-4 w-4" /> Delete</button>
         </>
       )}
     </div>

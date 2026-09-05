@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import { supabase, isSupabaseConfigured } from "@/services/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 
@@ -22,13 +24,13 @@ function Feature({ label, tone }: { label: string; tone: "pink" | "mint" | "sun"
 }
 
 export default function LandingPage() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { user } = useAuth();
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     if (user) {
-      navigate("/closet", { replace: true });
+      router.replace("/closet");
       return;
     }
 
@@ -40,13 +42,13 @@ export default function LandingPage() {
     let cancelled = false;
     supabase.auth.getUser().then(({ data, error }) => {
       if (cancelled) return;
-      if (!error && data.user) navigate("/closet", { replace: true });
+      if (!error && data.user) router.replace("/closet");
       else setChecking(false);
     });
     return () => {
       cancelled = true;
     };
-  }, [navigate, user]);
+  }, [router, user]);
 
   if (checking) {
     return (
@@ -88,7 +90,7 @@ export default function LandingPage() {
       </section>
 
       <button
-        onClick={() => navigate("/login")}
+        onClick={() => router.push("/login")}
         className="btn-pop relative z-10 mt-8 w-full py-4 text-base"
         data-tone="pink"
       >

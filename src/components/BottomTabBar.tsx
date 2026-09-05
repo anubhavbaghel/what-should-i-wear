@@ -1,4 +1,7 @@
-import { Link, useLocation } from "react-router-dom";
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Shirt, Sparkles, Heart, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +13,7 @@ const tabs = [
 ] as const;
 
 export function BottomTabBar() {
-  const { pathname } = useLocation();
+  const pathname = usePathname();
 
   return (
     <nav
@@ -23,7 +26,7 @@ export function BottomTabBar() {
           return (
             <li key={to} className="flex-1">
               <Link
-                to={to}
+                href={to}
                 className={cn(
                   "relative flex flex-col items-center gap-0.5 rounded-full py-2 text-[10px] font-semibold transition-colors",
                   active ? "text-ink" : "text-muted-foreground hover:text-ink"

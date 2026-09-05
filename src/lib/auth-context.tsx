@@ -1,8 +1,10 @@
+"use client";
+
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase, isSupabaseConfigured } from "@/services/supabase/client";
 import { profileRepository } from "@/services/supabase/profile.repository";
-import type { UserProfile, MannequinPreset } from "@/domain/user";
+import type { UserProfile } from "@/domain/user";
 
 const DEMO_USER: User = {
   id: "demo-user-id",
