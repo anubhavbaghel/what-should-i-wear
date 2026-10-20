@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import { Sparkles, Loader2, Camera, Check } from "lucide-react";
 import { listClothing } from "@/lib/closet.functions";
 import { generateTryOn, getProfile } from "@/lib/outfits.functions";
+import { MannequinAvatar, BuildType, SkinToneType } from "@/components/MannequinAvatar";
+import { BodyTypeSelector } from "@/components/BodyTypeSelector";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/style")({
@@ -23,21 +25,29 @@ const CATEGORY_GROUPS = [
   { id: "top", label: "Tops" },
   { id: "bottom", label: "Bottoms" },
   { id: "outerwear", label: "Outerwear" },
-  { id: "dress", label: "Dresses" },
+  { id: "dress", label: "Dresses & Sets" },
   { id: "shoes", label: "Shoes" },
   { id: "accessory", label: "Accessories" },
 ] as const;
+
+const PRESENTATIONS = [
+  { id: "neutral", label: "✦ Unisex / Neutral" },
+  { id: "masculine", label: "👔 Menswear" },
+  { id: "feminine", label: "👗 Womenswear" },
+] as const;
+
+type Presentation = (typeof PRESENTATIONS)[number]["id"];
 
 const PRESETS = [
   { id: "slim_light", label: "Slim · Light" },
   { id: "slim_medium", label: "Slim · Medium" },
   { id: "slim_dark", label: "Slim · Deep" },
-  { id: "neutral_light", label: "Avg · Light" },
-  { id: "neutral_medium", label: "Avg · Medium" },
-  { id: "neutral_dark", label: "Avg · Deep" },
-  { id: "curvy_light", label: "Curvy · Light" },
-  { id: "curvy_medium", label: "Curvy · Medium" },
-  { id: "curvy_dark", label: "Curvy · Deep" },
+  { id: "neutral_light", label: "Athletic · Light" },
+  { id: "neutral_medium", label: "Athletic · Medium" },
+  { id: "neutral_dark", label: "Athletic · Deep" },
+  { id: "curvy_light", label: "Broad/Curvy · Light" },
+  { id: "curvy_medium", label: "Broad/Curvy · Medium" },
+  { id: "curvy_dark", label: "Broad/Curvy · Deep" },
 ] as const;
 
 type Preset = (typeof PRESETS)[number]["id"];
@@ -60,11 +70,16 @@ function StylePage() {
 
   const [selected, setSelected] = useState<string[]>([]);
   const [preset, setPreset] = useState<Preset>("neutral_medium");
+  const [presentation, setPresentation] = useState<Presentation>("neutral");
   const [generating, setGenerating] = useState(false);
+  const [showFigureSettings, setShowFigureSettings] = useState(false);
 
   useEffect(() => {
     const p = profileData?.profile?.mannequin_preset as Preset | undefined;
     if (p) setPreset(p);
+    if (profileData?.stylePresentation) {
+      setPresentation(profileData.stylePresentation as Presentation);
+    }
   }, [profileData]);
 
   const items = closet?.items ?? [];
@@ -75,6 +90,26 @@ function StylePage() {
     }
     return map;
   }, [items]);
+
+  const [build, skin] = (preset.split("_") as [BuildType, SkinToneType]) || ["neutral", "medium"];
+
+  const selectedItems = useMemo(
+    () => items.filter((it) => selected.includes(it.id)),
+    [items, selected],
+  );
+
+  const clothingLayers = useMemo(() => {
+    const top = selectedItems.find((i) => i.category === "top" || i.category === "dress");
+    const bottom = selectedItems.find((i) => i.category === "bottom");
+    const outer = selectedItems.find((i) => i.category === "outerwear");
+    const shoes = selectedItems.find((i) => i.category === "shoes");
+    return {
+      topUrl: top ? (top.cutout_url ?? top.image_url) : null,
+      bottomUrl: bottom ? (bottom.cutout_url ?? bottom.image_url) : null,
+      outerwearUrl: outer ? (outer.cutout_url ?? outer.image_url) : null,
+      shoesUrl: shoes ? (shoes.cutout_url ?? shoes.image_url) : null,
+    };
+  }, [selectedItems]);
 
   function toggle(id: string) {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -88,7 +123,7 @@ function StylePage() {
     setGenerating(true);
     try {
       const { outfit } = await tryOn({
-        data: { itemIds: selected, mannequinPreset: preset },
+        data: { itemIds: selected, mannequinPreset: preset, stylePresentation: presentation },
       });
       await qc.invalidateQueries({ queryKey: ["outfits"] });
       toast.success("Look generated ✦");
@@ -111,29 +146,58 @@ function StylePage() {
           </span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Pick pieces, choose your figure, and we'll dress the mannequin for you.
+          Pick pieces from your closet to dress the mannequin, then generate your look.
         </p>
       </header>
 
-      {/* Mannequin preset */}
-      <section className="mt-7">
-        <h2 className="display text-lg text-foreground">Your figure</h2>
-        <div className="-mx-5 mt-3 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex gap-2 pb-2">
-            {PRESETS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => setPreset(p.id)}
-                className="chip shrink-0"
-                data-active={preset === p.id}
-                type="button"
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+      {/* Live Interactive Mannequin Stage */}
+      <div className="card-pop mt-6 flex flex-col items-center justify-center p-5 text-center" style={{ background: "var(--card)" }}>
+        <div className="relative flex items-center justify-center h-60 w-44">
+          <MannequinAvatar
+            build={build}
+            skinTone={skin}
+            presentation={presentation}
+            size="lg"
+            clothingLayers={clothingLayers}
+          />
         </div>
-      </section>
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFigureSettings((v) => !v)}
+            className="chip text-xs"
+            data-active={showFigureSettings}
+          >
+            {showFigureSettings ? "Hide Figure Settings" : "✦ Customize Figure"}
+          </button>
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelected([])}
+              className="chip text-xs text-muted-foreground hover:text-ink"
+            >
+              Clear fit
+            </button>
+          )}
+        </div>
+        <p className="mt-2 text-[11px] font-semibold text-muted-foreground">
+          {selected.length === 0
+            ? "Tap pieces below to dress your mannequin"
+            : `${selected.length} piece${selected.length > 1 ? "s" : ""} on mannequin`}
+        </p>
+
+        {showFigureSettings && (
+          <div className="w-full mt-5 pt-5 border-t-[1.5px] border-ink/15 text-left">
+            <BodyTypeSelector
+              value={preset}
+              onChange={(p) => setPreset(p as Preset)}
+              presentation={presentation}
+              onPresentationChange={(pr) => setPresentation(pr as Presentation)}
+              showPresentationToggle={true}
+            />
+          </div>
+        )}
+      </div>
 
       {/* Item picker */}
       <section className="mt-8">

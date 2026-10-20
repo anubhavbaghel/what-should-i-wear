@@ -6,6 +6,9 @@ import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import { ChevronRight, Loader2, Sparkles, Camera, Shirt } from "lucide-react";
 import { completeOnboarding, getProfile } from "@/lib/outfits.functions";
+import { BodyTypeSelector } from "@/components/BodyTypeSelector";
+import { AvatarDesignerStudio } from "@/components/AvatarDesignerStudio";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
   head: () => ({
@@ -21,15 +24,22 @@ const PRESETS = [
   { id: "slim_light", label: "Slim · Light" },
   { id: "slim_medium", label: "Slim · Medium" },
   { id: "slim_dark", label: "Slim · Deep" },
-  { id: "neutral_light", label: "Avg · Light" },
-  { id: "neutral_medium", label: "Avg · Medium" },
-  { id: "neutral_dark", label: "Avg · Deep" },
-  { id: "curvy_light", label: "Curvy · Light" },
-  { id: "curvy_medium", label: "Curvy · Medium" },
-  { id: "curvy_dark", label: "Curvy · Deep" },
+  { id: "neutral_light", label: "Athletic · Light" },
+  { id: "neutral_medium", label: "Athletic · Medium" },
+  { id: "neutral_dark", label: "Athletic · Deep" },
+  { id: "curvy_light", label: "Broad/Curvy · Light" },
+  { id: "curvy_medium", label: "Broad/Curvy · Medium" },
+  { id: "curvy_dark", label: "Broad/Curvy · Deep" },
+] as const;
+
+const PRESENTATIONS = [
+  { id: "neutral", label: "✦ Unisex / Neutral" },
+  { id: "masculine", label: "👔 Menswear" },
+  { id: "feminine", label: "👗 Womenswear" },
 ] as const;
 
 type Preset = (typeof PRESETS)[number]["id"];
+type Presentation = (typeof PRESENTATIONS)[number]["id"];
 
 function OnboardingPage() {
   const navigate = useNavigate();
@@ -45,7 +55,16 @@ function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [preset, setPreset] = useState<Preset>("neutral_medium");
+  const [presentation, setPresentation] = useState<Presentation>("neutral");
+  const [viewMode, setViewMode] = useState<"3d" | "cards">("3d");
   const [saving, setSaving] = useState(false);
+  const [avatarConfig, setAvatarConfig] = useState<{
+    build?: "slim" | "neutral" | "curvy";
+    skinToneHex?: string;
+    presentation?: "neutral" | "masculine" | "feminine";
+    baseWearHex?: string;
+    heightScale?: number;
+  } | undefined>(undefined);
 
   useEffect(() => {
     const p = profileData?.profile;
@@ -56,12 +75,25 @@ function OnboardingPage() {
     }
     if (p.display_name && !name) setName(p.display_name);
     if (p.mannequin_preset) setPreset(p.mannequin_preset as Preset);
+    if (profileData?.stylePresentation) {
+      setPresentation(profileData.stylePresentation as Presentation);
+    }
+    if (profileData?.avatarConfig) {
+      setAvatarConfig(profileData.avatarConfig);
+    }
   }, [profileData, navigate, name]);
 
   async function save(goAdd: boolean) {
     setSaving(true);
     try {
-      await finish({ data: { displayName: name.trim() || undefined, preset } });
+      await finish({
+        data: {
+          displayName: name.trim() || undefined,
+          preset,
+          stylePresentation: presentation,
+          avatarConfig,
+        },
+      });
       await qc.invalidateQueries({ queryKey: ["profile"] });
       toast.success("You're all set ✦");
       navigate({ to: goAdd ? "/closet/add" : "/closet", replace: true });
@@ -142,35 +174,70 @@ function OnboardingPage() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
           >
-            <span className="sticker -rotate-2" style={{ background: "var(--pink)" }}>
-              your mannequin
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="sticker -rotate-2" style={{ background: "var(--pink)" }}>
+                3D mannequin studio
+              </span>
+              <div className="flex rounded-full border-[1.5px] border-ink bg-card p-0.5 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("3d")}
+                  className={cn(
+                    "px-2.5 py-0.5 rounded-full transition-colors",
+                    viewMode === "3d" ? "bg-sun text-ink shadow-[1px_1px_0px_#1B1B1D]" : "text-muted-foreground hover:text-ink"
+                  )}
+                >
+                  3D Studio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("cards")}
+                  className={cn(
+                    "px-2.5 py-0.5 rounded-full transition-colors",
+                    viewMode === "cards" ? "bg-sun text-ink shadow-[1px_1px_0px_#1B1B1D]" : "text-muted-foreground hover:text-ink"
+                  )}
+                >
+                  Cards
+                </button>
+              </div>
+            </div>
+
             <h1 className="display mt-3 text-[2.4rem] leading-[0.95] text-foreground">
-              Pick a{" "}
+              Design your{" "}
               <span
                 className="inline-block rotate-1 rounded-xl border-[1.5px] border-ink px-2"
                 style={{ background: "var(--mint)" }}
               >
-                figure
-              </span>{" "}
-              that feels like you.
+                mannequin
+              </span>
+              .
             </h1>
-            <p className="mt-3 text-sm text-muted-foreground">
-              We'll dress this mannequin when you generate looks. You can change it anytime.
+            <p className="mt-2 text-sm text-muted-foreground">
+              Rotate 360°, sculpt your build silhouette, and pick your complexion tone.
             </p>
 
-            <div className="mt-6 grid grid-cols-3 gap-2">
-              {PRESETS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPreset(p.id)}
-                  className="chip justify-center text-[12px]"
-                  data-active={preset === p.id}
-                >
-                  {p.label}
-                </button>
-              ))}
+            {/* Visual Mannequin Body & Skin Tone Selector */}
+            <div className="mt-5">
+              {viewMode === "3d" ? (
+                <AvatarDesignerStudio
+                  initialPreset={preset}
+                  initialPresentation={presentation}
+                  showSaveButton={false}
+                  onChange={(cfg) => {
+                    setPreset(cfg.preset as Preset);
+                    setPresentation(cfg.presentation as Presentation);
+                    setAvatarConfig(cfg);
+                  }}
+                />
+              ) : (
+                <BodyTypeSelector
+                  value={preset}
+                  onChange={(p) => setPreset(p as Preset)}
+                  presentation={presentation}
+                  onPresentationChange={(pr) => setPresentation(pr as Presentation)}
+                  showPresentationToggle={true}
+                />
+              )}
             </div>
 
             <div className="mt-8 flex gap-3">

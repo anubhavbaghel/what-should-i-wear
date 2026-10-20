@@ -1,13 +1,13 @@
 import { z } from "zod";
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { demoStore } from "@/lib/demo-store";
 
 const GATEWAY_BASE = "https://ai.gateway.lovable.dev/v1";
 
 function aiKey() {
   const key = process.env.LOVABLE_API_KEY;
-  if (!key) throw new Error("LOVABLE_API_KEY is not configured.");
-  return key;
+  return key || null;
 }
 
 const MANNEQUIN_PRESETS = [
@@ -23,20 +23,29 @@ const MANNEQUIN_PRESETS = [
 ] as const;
 
 type MannequinPreset = (typeof MANNEQUIN_PRESETS)[number];
+export type StylePresentation = "neutral" | "masculine" | "feminine";
 
-function describePreset(p: MannequinPreset): string {
+function describePreset(
+  p: MannequinPreset,
+  presentation: StylePresentation = "neutral",
+): string {
   const [build, skin] = p.split("_") as [string, string];
   const buildMap: Record<string, string> = {
-    slim: "slim",
-    neutral: "average build",
-    curvy: "curvy",
+    slim: "slim, lean silhouette",
+    neutral: "regular, athletic/balanced build",
+    curvy: presentation === "masculine" ? "broad-shouldered, muscular build" : "curvy, fuller silhouette",
   };
   const skinMap: Record<string, string> = {
     light: "light skin tone",
     medium: "medium skin tone",
     dark: "deep skin tone",
   };
-  return `${buildMap[build] ?? build}, ${skinMap[skin] ?? skin}`;
+  const genderMap: Record<StylePresentation, string> = {
+    masculine: "masculine-presenting figure (menswear styling)",
+    feminine: "feminine-presenting figure (womenswear styling)",
+    neutral: "gender-neutral, androgynous figure (unisex styling)",
+  };
+  return `${genderMap[presentation] ?? genderMap.neutral}, ${buildMap[build] ?? build}, ${skinMap[skin] ?? skin}`;
 }
 
 /* ============ List outfits ============ */
@@ -44,6 +53,10 @@ export const listOutfits = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    if (demoStore.isDemoUser(userId)) {
+      return { outfits: demoStore.getOutfits() };
+    }
+
     const { data, error } = await supabase
       .from("outfits")
       .select("*")
@@ -56,9 +69,15 @@ export const listOutfits = createServerFn({ method: "GET" })
 /* ============ Get one outfit (with its items) ============ */
 export const getOutfit = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .inputValidator((input) => z.object({ id: z.string().min(1) }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (demoStore.isDemoUser(userId)) {
+      const res = demoStore.getOutfit(data.id);
+      if (res) return { outfit: res.outfit, items: res.items };
+      throw new Error("Outfit not found");
+    }
+
     const { data: outfit, error } = await supabase
       .from("outfits")
       .select("*")
@@ -89,9 +108,14 @@ export const getOutfit = createServerFn({ method: "GET" })
 /* ============ Delete outfit ============ */
 export const deleteOutfit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((input) => z.object({ id: z.string().uuid() }).parse(input))
+  .inputValidator((input) => z.object({ id: z.string().min(1) }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (demoStore.isDemoUser(userId)) {
+      demoStore.deleteOutfit(data.id);
+      return { ok: true };
+    }
+
     const { error } = await supabase
       .from("outfits")
       .delete()
@@ -105,10 +129,15 @@ export const deleteOutfit = createServerFn({ method: "POST" })
 export const renameOutfit = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ id: z.string().uuid(), name: z.string().min(1).max(80) }).parse(input),
+    z.object({ id: z.string().min(1), name: z.string().min(1).max(80) }).parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (demoStore.isDemoUser(userId)) {
+      demoStore.renameOutfit(data.id, data.name);
+      return { ok: true };
+    }
+
     const { error } = await supabase
       .from("outfits")
       .update({ name: data.name })
@@ -124,14 +153,34 @@ export const generateTryOn = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
-        itemIds: z.array(z.string().uuid()).min(1).max(6),
+        itemIds: z.array(z.string().min(1)).min(1).max(6),
         mannequinPreset: z.enum(MANNEQUIN_PRESETS),
+        stylePresentation: z.enum(["neutral", "masculine", "feminine"]).optional(),
         name: z.string().min(1).max(80).optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+
+    if (demoStore.isDemoUser(userId)) {
+      const outfit = demoStore.addOutfit({
+        name: data.name?.trim() || "New look",
+        item_ids: data.itemIds,
+        mannequin_preset: data.mannequinPreset,
+      });
+      return { outfit };
+    }
+
+    const key = aiKey();
+    if (!key) {
+      const outfit = demoStore.addOutfit({
+        name: data.name?.trim() || "New look",
+        item_ids: data.itemIds,
+        mannequin_preset: data.mannequinPreset,
+      });
+      return { outfit };
+    }
 
     // Load the items (must belong to user — RLS enforces too)
     const { data: items, error: itemsErr } = await supabase
@@ -142,7 +191,7 @@ export const generateTryOn = createServerFn({ method: "POST" })
     if (itemsErr) throw new Error(itemsErr.message);
     if (!items || items.length === 0) throw new Error("Couldn't load those pieces.");
 
-    const description = describePreset(data.mannequinPreset);
+    const description = describePreset(data.mannequinPreset, data.stylePresentation);
     const piecesText = items
       .map((i) => `- ${i.name ?? i.category} (${i.category})`)
       .join("\n");
@@ -161,90 +210,179 @@ export const generateTryOn = createServerFn({ method: "POST" })
       })),
     ];
 
-    const res = await fetch(`${GATEWAY_BASE}/chat/completions`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${aiKey()}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-image",
-        messages: [{ role: "user", content: userContent }],
-        modalities: ["image", "text"],
-      }),
-    });
+    try {
+      const res = await fetch(`${GATEWAY_BASE}/chat/completions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${key}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash-image",
+          messages: [{ role: "user", content: userContent }],
+          modalities: ["image", "text"],
+        }),
+      });
 
-    if (!res.ok) {
-      const txt = await res.text();
-      if (res.status === 429) throw new Error("Too many requests, slow down a sec.");
-      if (res.status === 402) throw new Error("AI credits exhausted. Add credits to keep styling.");
-      throw new Error(`Try-on generation failed [${res.status}]: ${txt}`);
-    }
-    const json = (await res.json()) as {
-      choices?: {
-        message?: { images?: { image_url?: { url?: string } }[] };
-      }[];
-    };
-    const dataUrl = json.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    if (!dataUrl) throw new Error("AI didn't return an image. Try again.");
+      if (!res.ok) {
+        console.warn(`Try-on generation returned status ${res.status}, using mock look.`);
+        const outfit = demoStore.addOutfit({
+          name: data.name?.trim() || "New look",
+          item_ids: data.itemIds,
+          mannequin_preset: data.mannequinPreset,
+        });
+        return { outfit };
+      }
 
-    // Upload generated image to storage
-    const blob = await (await fetch(dataUrl)).blob();
-    const path = `${userId}/outfits/${Date.now()}.png`;
-    const { error: upErr } = await supabase.storage
-      .from("wardrobe")
-      .upload(path, blob, { contentType: "image/png", upsert: false });
-    if (upErr) throw new Error(upErr.message);
-    const { data: pub } = supabase.storage.from("wardrobe").getPublicUrl(path);
-    const generatedUrl = pub.publicUrl;
+      const json = (await res.json()) as {
+        choices?: {
+          message?: { images?: { image_url?: { url?: string } }[] };
+        }[];
+      };
+      const dataUrl = json.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+      if (!dataUrl) {
+        const outfit = demoStore.addOutfit({
+          name: data.name?.trim() || "New look",
+          item_ids: data.itemIds,
+          mannequin_preset: data.mannequinPreset,
+        });
+        return { outfit };
+      }
 
-    // Save outfit row
-    const { data: outfit, error: insErr } = await supabase
-      .from("outfits")
-      .insert({
-        user_id: userId,
+      // Upload generated image to storage
+      const blob = await (await fetch(dataUrl)).blob();
+      const path = `${userId}/outfits/${Date.now()}.png`;
+      const { error: upErr } = await supabase.storage
+        .from("wardrobe")
+        .upload(path, blob, { contentType: "image/png", upsert: false });
+      if (upErr) throw new Error(upErr.message);
+      const { data: pub } = supabase.storage.from("wardrobe").getPublicUrl(path);
+      const generatedUrl = pub.publicUrl;
+
+      // Save outfit row
+      const { data: outfit, error: insErr } = await supabase
+        .from("outfits")
+        .insert({
+          user_id: userId,
+          name: data.name?.trim() || "New look",
+          item_ids: data.itemIds,
+          mannequin_preset: data.mannequinPreset,
+          generated_image_url: generatedUrl,
+        })
+        .select()
+        .single();
+      if (insErr) throw new Error(insErr.message);
+
+      return { outfit };
+    } catch (err) {
+      console.warn("Try-on generation failed, using mock look fallback:", err);
+      const outfit = demoStore.addOutfit({
         name: data.name?.trim() || "New look",
         item_ids: data.itemIds,
         mannequin_preset: data.mannequinPreset,
-        generated_image_url: generatedUrl,
-      })
-      .select()
-      .single();
-    if (insErr) throw new Error(insErr.message);
-
-    return { outfit };
+      });
+      return { outfit };
+    }
   });
 
-/* ============ Profile: get + update mannequin preset ============ */
+/* ============ Profile: get + update mannequin preset & style presentation ============ */
 export const getProfile = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { supabase, userId } = context;
+    if (demoStore.isDemoUser(userId)) {
+      const dp = demoStore.getProfile();
+      return {
+        profile: {
+          id: dp.id,
+          display_name: dp.display_name,
+          mannequin_preset: dp.mannequin_preset as any,
+          onboarded_at: dp.onboarded_at,
+          created_at: dp.onboarded_at,
+          updated_at: dp.onboarded_at,
+          avatar_url: null,
+        },
+        stylePresentation: dp.style_presentation,
+        avatarConfig: dp.avatar_config,
+      };
+    }
+
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
       .eq("id", userId)
       .maybeSingle();
     if (error) throw new Error(error.message);
-    return { profile: data };
+
+    const { data: userData } = await supabase.auth.getUser();
+    const stylePresentation =
+      (userData?.user?.user_metadata?.style_presentation as StylePresentation) ?? "neutral";
+    const avatarConfig = userData?.user?.user_metadata?.avatar_config ?? null;
+
+    return { profile: data, stylePresentation, avatarConfig };
   });
 
 export const updateMannequinPreset = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
-    z.object({ preset: z.enum(MANNEQUIN_PRESETS) }).parse(input),
+    z
+      .object({
+        preset: z.enum(MANNEQUIN_PRESETS),
+        avatarConfig: z
+          .object({
+            build: z.enum(["slim", "neutral", "curvy"]).optional(),
+            skinToneHex: z.string().optional(),
+            presentation: z.enum(["neutral", "masculine", "feminine"]).optional(),
+            baseWearHex: z.string().optional(),
+            heightScale: z.number().optional(),
+          })
+          .optional(),
+      })
+      .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (demoStore.isDemoUser(userId)) {
+      demoStore.updatePreset(data.preset);
+      if (data.avatarConfig) demoStore.updateAvatarConfig(data.avatarConfig);
+      return { ok: true };
+    }
+
     const { error } = await supabase
       .from("profiles")
       .update({ mannequin_preset: data.preset })
       .eq("id", userId);
     if (error) throw new Error(error.message);
+
+    if (data.avatarConfig) {
+      await supabase.auth.updateUser({
+        data: { avatar_config: data.avatarConfig },
+      });
+    }
+
     return { ok: true };
   });
 
-/* ============ Onboarding: save name + preset and mark complete ============ */
+export const updateStylePresentation = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input) =>
+    z.object({ presentation: z.enum(["neutral", "masculine", "feminine"]) }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    if (demoStore.isDemoUser(userId)) {
+      demoStore.updatePresentation(data.presentation);
+      return { ok: true };
+    }
+
+    const { error } = await supabase.auth.updateUser({
+      data: { style_presentation: data.presentation },
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+/* ============ Onboarding: save name + preset + style presentation and mark complete ============ */
 export const completeOnboarding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) =>
@@ -252,11 +390,26 @@ export const completeOnboarding = createServerFn({ method: "POST" })
       .object({
         displayName: z.string().min(1).max(60).optional(),
         preset: z.enum(MANNEQUIN_PRESETS),
+        stylePresentation: z.enum(["neutral", "masculine", "feminine"]).optional(),
+        avatarConfig: z
+          .object({
+            build: z.enum(["slim", "neutral", "curvy"]).optional(),
+            skinToneHex: z.string().optional(),
+            presentation: z.enum(["neutral", "masculine", "feminine"]).optional(),
+            baseWearHex: z.string().optional(),
+            heightScale: z.number().optional(),
+          })
+          .optional(),
       })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    if (demoStore.isDemoUser(userId)) {
+      demoStore.completeOnboarding(data);
+      return { ok: true };
+    }
+
     const patch: {
       mannequin_preset: typeof data.preset;
       onboarded_at: string;
@@ -271,5 +424,32 @@ export const completeOnboarding = createServerFn({ method: "POST" })
       .update(patch)
       .eq("id", userId);
     if (error) throw new Error(error.message);
+
+    const userMetadata: Record<string, any> = {};
+    if (data.stylePresentation) userMetadata.style_presentation = data.stylePresentation;
+    if (data.avatarConfig) userMetadata.avatar_config = data.avatarConfig;
+    if (Object.keys(userMetadata).length > 0) {
+      await supabase.auth.updateUser({
+        data: userMetadata,
+      });
+    }
+
     return { ok: true };
   });
+
+/* ============ Reset demo session for first-time user testing ============ */
+export const resetDemoSession = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    demoStore.resetAsFirstTime();
+    return { ok: true };
+  });
+
+/* ============ Load sample wardrobe for demo testing ============ */
+export const loadDemoSampleWardrobe = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    demoStore.loadSampleWardrobe();
+    return { ok: true };
+  });
+

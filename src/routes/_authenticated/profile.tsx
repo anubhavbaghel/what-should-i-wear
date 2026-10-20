@@ -5,7 +5,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut } from "lucide-react";
-import { getProfile, updateMannequinPreset } from "@/lib/outfits.functions";
+import { getProfile, updateMannequinPreset, updateStylePresentation } from "@/lib/outfits.functions";
+import { BodyTypeSelector } from "@/components/BodyTypeSelector";
+import { AvatarDesignerStudio } from "@/components/AvatarDesignerStudio";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/profile")({
   head: () => ({
@@ -17,16 +20,24 @@ export const Route = createFileRoute("/_authenticated/profile")({
   component: ProfilePage,
 });
 
+const PRESENTATIONS = [
+  { id: "neutral", label: "✦ Unisex / Neutral" },
+  { id: "masculine", label: "👔 Menswear" },
+  { id: "feminine", label: "👗 Womenswear" },
+] as const;
+
+type Presentation = (typeof PRESENTATIONS)[number]["id"];
+
 const PRESETS = [
   { id: "slim_light", label: "Slim · Light" },
   { id: "slim_medium", label: "Slim · Medium" },
   { id: "slim_dark", label: "Slim · Deep" },
-  { id: "neutral_light", label: "Avg · Light" },
-  { id: "neutral_medium", label: "Avg · Medium" },
-  { id: "neutral_dark", label: "Avg · Deep" },
-  { id: "curvy_light", label: "Curvy · Light" },
-  { id: "curvy_medium", label: "Curvy · Medium" },
-  { id: "curvy_dark", label: "Curvy · Deep" },
+  { id: "neutral_light", label: "Athletic · Light" },
+  { id: "neutral_medium", label: "Athletic · Medium" },
+  { id: "neutral_dark", label: "Athletic · Deep" },
+  { id: "curvy_light", label: "Broad/Curvy · Light" },
+  { id: "curvy_medium", label: "Broad/Curvy · Medium" },
+  { id: "curvy_dark", label: "Broad/Curvy · Deep" },
 ] as const;
 
 type Preset = (typeof PRESETS)[number]["id"];
@@ -36,6 +47,7 @@ function ProfilePage() {
   const qc = useQueryClient();
   const fetchProfile = useServerFn(getProfile);
   const setPresetFn = useServerFn(updateMannequinPreset);
+  const setPresentationFn = useServerFn(updateStylePresentation);
 
   const [user, setUser] = useState<{ email: string | null; name: string | null; avatar: string | null } | null>(null);
   const { data: profileData } = useQuery({
@@ -59,12 +71,33 @@ function ProfilePage() {
   }, []);
 
   const currentPreset = (profileData?.profile?.mannequin_preset as Preset | undefined) ?? "neutral_medium";
+  const currentPresentation = (profileData?.stylePresentation as Presentation | undefined) ?? "neutral";
+  const [profileView, setProfileView] = useState<"3d" | "cards">("3d");
 
-  async function pickPreset(p: Preset) {
+  async function pickPreset(
+    p: Preset,
+    avatarConfig?: {
+      build?: "slim" | "neutral" | "curvy";
+      skinToneHex?: string;
+      presentation?: "neutral" | "masculine" | "feminine";
+      baseWearHex?: string;
+      heightScale?: number;
+    }
+  ) {
     try {
-      await setPresetFn({ data: { preset: p } });
+      await setPresetFn({ data: { preset: p, avatarConfig } });
       await qc.invalidateQueries({ queryKey: ["profile"] });
       toast.success("Figure updated");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't save.");
+    }
+  }
+
+  async function pickPresentation(pr: Presentation) {
+    try {
+      await setPresentationFn({ data: { presentation: pr } });
+      await qc.invalidateQueries({ queryKey: ["profile"] });
+      toast.success("Style preference updated");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save.");
     }
@@ -107,23 +140,60 @@ function ProfilePage() {
         </div>
       </section>
 
+      {/* Visual Mannequin Figure Customizer */}
       <section className="mt-8">
-        <h2 className="display text-lg text-foreground">Default figure</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          We'll use this as the mannequin for new looks.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {PRESETS.map((p) => (
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="display text-lg text-foreground">Your Mannequin Figure</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Customize your styling vibe, skin tone, and body silhouette.
+            </p>
+          </div>
+          <div className="flex rounded-full border-[1.5px] border-ink bg-card p-0.5 text-[11px] font-bold shrink-0">
             <button
-              key={p.id}
-              onClick={() => pickPreset(p.id)}
-              className="chip"
-              data-active={currentPreset === p.id}
               type="button"
+              onClick={() => setProfileView("3d")}
+              className={cn(
+                "px-2.5 py-0.5 rounded-full transition-colors",
+                profileView === "3d" ? "bg-sun text-ink shadow-[1px_1px_0px_#1B1B1D]" : "text-muted-foreground hover:text-ink"
+              )}
             >
-              {p.label}
+              3D Studio
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={() => setProfileView("cards")}
+              className={cn(
+                "px-2.5 py-0.5 rounded-full transition-colors",
+                profileView === "cards" ? "bg-sun text-ink shadow-[1px_1px_0px_#1B1B1D]" : "text-muted-foreground hover:text-ink"
+              )}
+            >
+              Cards
+            </button>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          {profileView === "3d" ? (
+            <AvatarDesignerStudio
+              initialPreset={currentPreset}
+              initialPresentation={currentPresentation}
+              showSaveButton={true}
+              onSave={async (cfg) => {
+                await pickPreset(cfg.preset as Preset, cfg);
+                await pickPresentation(cfg.presentation as Presentation);
+                toast.success("3D Mannequin saved ✦");
+              }}
+            />
+          ) : (
+            <BodyTypeSelector
+              value={currentPreset}
+              onChange={(p) => pickPreset(p as Preset)}
+              presentation={currentPresentation}
+              onPresentationChange={(pr) => pickPresentation(pr as Presentation)}
+              showPresentationToggle={true}
+            />
+          )}
         </div>
       </section>
 

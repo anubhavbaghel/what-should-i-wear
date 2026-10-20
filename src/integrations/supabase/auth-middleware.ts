@@ -43,6 +43,17 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: No token provided');
     }
 
+    if (token === 'demo-mode-token') {
+      const supabase = createClient<Database>(SUPABASE_URL!, SUPABASE_PUBLISHABLE_KEY!);
+      return next({
+        context: {
+          supabase,
+          userId: 'demo-user-id',
+          claims: { sub: 'demo-user-id' } as any,
+        },
+      });
+    }
+
     const supabase = createClient<Database>(
       SUPABASE_URL!,
       SUPABASE_PUBLISHABLE_KEY!,

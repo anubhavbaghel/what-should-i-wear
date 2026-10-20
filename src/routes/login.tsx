@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { lovable } from "@/integrations/lovable";
 import { supabase } from "@/integrations/supabase/client";
+import { resetDemoSession, loadDemoSampleWardrobe } from "@/lib/outfits.functions";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -16,6 +19,9 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
+  const resetDemo = useServerFn(resetDemoSession);
+  const loadWardrobe = useServerFn(loadDemoSampleWardrobe);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -48,6 +54,33 @@ function LoginPage() {
       setLoading(false);
     }
   }
+
+  async function enterDemoModeAsFirstTime() {
+    localStorage.setItem("whattowear_demo_mode", "true");
+    document.cookie = "whattowear_demo_mode=true; path=/; max-age=86400";
+    try {
+      await resetDemo();
+      await qc.invalidateQueries();
+    } catch (e) {
+      console.warn("Reset demo session error:", e);
+    }
+    toast.success("⚡ Demo Mode: Welcome to your first-time styling setup!");
+    navigate({ to: "/onboarding", replace: true });
+  }
+
+  async function enterDemoModeWithSampleWardrobe() {
+    localStorage.setItem("whattowear_demo_mode", "true");
+    document.cookie = "whattowear_demo_mode=true; path=/; max-age=86400";
+    try {
+      await loadWardrobe();
+      await qc.invalidateQueries();
+    } catch (e) {
+      console.warn("Load sample wardrobe error:", e);
+    }
+    toast.success("⚡ Demo Mode: Pre-seeded wardrobe loaded!");
+    navigate({ to: "/closet", replace: true });
+  }
+
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background px-6 pt-12 pb-10 flex flex-col">
@@ -89,16 +122,34 @@ function LoginPage() {
 
       <div className="relative z-10 space-y-3">
         <button
+          onClick={enterDemoModeAsFirstTime}
+          className="btn-pop w-full py-4 text-base"
+          data-tone="sun"
+          type="button"
+        >
+          ⚡ Try Demo Mode (First-Time Experience)
+        </button>
+
+        <button
+          onClick={enterDemoModeWithSampleWardrobe}
+          className="btn-pop w-full py-3 text-sm"
+          data-tone="mint"
+          type="button"
+        >
+          ✨ Skip to Demo Closet (Pre-Seeded)
+        </button>
+
+        <button
           onClick={signInWithGoogle}
           disabled={loading}
-          className="btn-pop w-full py-4 text-base disabled:opacity-60"
+          className="btn-pop w-full py-3.5 text-sm disabled:opacity-60"
           data-tone="paper"
         >
           <GoogleMark />
           {loading ? "Opening Google…" : "Continue with Google"}
         </button>
-        <p className="text-center text-[11px] text-muted-foreground px-6 leading-relaxed">
-          By continuing you agree to keep it cute. We never share your closet.
+        <p className="text-center text-[11px] text-muted-foreground px-4 leading-relaxed">
+          First-Time Demo walks through name input, mannequin & style vibe setup, and scanning your first piece.
         </p>
       </div>
     </main>

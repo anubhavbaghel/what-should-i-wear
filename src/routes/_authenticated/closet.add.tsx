@@ -28,7 +28,7 @@ const CATEGORIES = [
   { id: "top", label: "Top" },
   { id: "bottom", label: "Bottom" },
   { id: "outerwear", label: "Outerwear" },
-  { id: "dress", label: "Dress" },
+  { id: "dress", label: "Dress / One-Piece / Set" },
   { id: "shoes", label: "Shoes" },
   { id: "accessory", label: "Accessory" },
 ] as const;
@@ -62,18 +62,36 @@ function AddClothingPage() {
     try {
       setStage("uploading");
 
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Not signed in");
+      const isDemo =
+        typeof window !== "undefined" &&
+        localStorage.getItem("whattowear_demo_mode") === "true";
 
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `${u.user.id}/raw/${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("wardrobe")
-        .upload(path, file, { upsert: false, contentType: file.type || "image/jpeg" });
-      if (upErr) throw upErr;
+      let rawUrl = "";
+      let userId = "demo-user-id";
 
-      const { data: pub } = supabase.storage.from("wardrobe").getPublicUrl(path);
-      const rawUrl = pub.publicUrl;
+      if (isDemo) {
+        rawUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      } else {
+        const { data: u } = await supabase.auth.getUser();
+        if (!u.user) throw new Error("Not signed in");
+        userId = u.user.id;
+
+        const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+        const path = `${userId}/raw/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("wardrobe")
+          .upload(path, file, { upsert: false, contentType: file.type || "image/jpeg" });
+        if (upErr) throw upErr;
+
+        const { data: pub } = supabase.storage.from("wardrobe").getPublicUrl(path);
+        rawUrl = pub.publicUrl;
+      }
+
       setImageUrl(rawUrl);
 
       setStage("processing");
@@ -95,15 +113,19 @@ function AddClothingPage() {
 
       if (cutout.status === "fulfilled" && cutout.value.cutoutDataUrl) {
         const dataUrl = cutout.value.cutoutDataUrl;
-        // Upload cutout back to storage
-        const blob = await (await fetch(dataUrl)).blob();
-        const cutoutPath = `${u.user.id}/cutouts/${Date.now()}.png`;
-        const { error: cErr } = await supabase.storage
-          .from("wardrobe")
-          .upload(cutoutPath, blob, { contentType: "image/png", upsert: false });
-        if (!cErr) {
-          const { data: cPub } = supabase.storage.from("wardrobe").getPublicUrl(cutoutPath);
-          setCutoutUrl(cPub.publicUrl);
+        if (isDemo) {
+          setCutoutUrl(dataUrl);
+        } else {
+          // Upload cutout back to storage
+          const blob = await (await fetch(dataUrl)).blob();
+          const cutoutPath = `${userId}/cutouts/${Date.now()}.png`;
+          const { error: cErr } = await supabase.storage
+            .from("wardrobe")
+            .upload(cutoutPath, blob, { contentType: "image/png", upsert: false });
+          if (!cErr) {
+            const { data: cPub } = supabase.storage.from("wardrobe").getPublicUrl(cutoutPath);
+            setCutoutUrl(cPub.publicUrl);
+          }
         }
       }
 
