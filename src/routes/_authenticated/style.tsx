@@ -8,6 +8,7 @@ import { Sparkles, Loader2, Camera, Check } from "lucide-react";
 import { listClothing } from "@/lib/closet.functions";
 import { generateTryOn, getProfile } from "@/lib/outfits.functions";
 import { MannequinAvatar, BuildType, SkinToneType } from "@/components/MannequinAvatar";
+import { ThreeMannequinViewer } from "@/components/ThreeMannequinViewer";
 import { BodyTypeSelector } from "@/components/BodyTypeSelector";
 import { cn } from "@/lib/utils";
 
@@ -73,6 +74,7 @@ function StylePage() {
   const [presentation, setPresentation] = useState<Presentation>("neutral");
   const [generating, setGenerating] = useState(false);
   const [showFigureSettings, setShowFigureSettings] = useState(false);
+  const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
 
   useEffect(() => {
     const p = profileData?.profile?.mannequin_preset as Preset | undefined;
@@ -92,6 +94,12 @@ function StylePage() {
   }, [items]);
 
   const [build, skin] = (preset.split("_") as [BuildType, SkinToneType]) || ["neutral", "medium"];
+
+  const skinToneHex = useMemo(() => {
+    if (skin === "light") return "#FCE5D8";
+    if (skin === "dark") return "#6D4835";
+    return "#D59D7B";
+  }, [skin]);
 
   const selectedItems = useMemo(
     () => items.filter((it) => selected.includes(it.id)),
@@ -151,35 +159,77 @@ function StylePage() {
       </header>
 
       {/* Live Interactive Mannequin Stage */}
-      <div className="card-pop mt-6 flex flex-col items-center justify-center p-5 text-center" style={{ background: "var(--card)" }}>
-        <div className="relative flex items-center justify-center h-60 w-44">
-          <MannequinAvatar
-            build={build}
-            skinTone={skin}
-            presentation={presentation}
-            size="lg"
-            clothingLayers={clothingLayers}
-          />
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowFigureSettings((v) => !v)}
-            className="chip text-xs"
-            data-active={showFigureSettings}
-          >
-            {showFigureSettings ? "Hide Figure Settings" : "✦ Customize Figure"}
-          </button>
-          {selected.length > 0 && (
+      <div className="card-pop mt-6 p-4 text-center" style={{ background: "var(--card)" }}>
+        {/* Stage Header Controls */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          {/* 3D vs 2D View Switcher */}
+          <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-full border border-ink/15">
             <button
               type="button"
-              onClick={() => setSelected([])}
-              className="chip text-xs text-muted-foreground hover:text-ink"
+              onClick={() => setViewMode("3d")}
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all",
+                viewMode === "3d" ? "bg-sun text-ink border border-ink shadow-xs" : "text-muted-foreground hover:text-ink"
+              )}
             >
-              Clear fit
+              ✦ 3D Mixamo
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => setViewMode("2d")}
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all",
+                viewMode === "2d" ? "bg-card text-ink border border-ink shadow-xs" : "text-muted-foreground hover:text-ink"
+              )}
+            >
+              2D Schematic
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowFigureSettings((v) => !v)}
+              className="chip text-[11px]"
+              data-active={showFigureSettings}
+            >
+              {showFigureSettings ? "Hide Figure" : "✦ Customize Figure"}
+            </button>
+            {selected.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelected([])}
+                className="chip text-[11px] text-muted-foreground hover:text-ink"
+              >
+                Clear fit
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Viewport: 3D Mixamo Model vs 2D Schematic */}
+        {viewMode === "3d" ? (
+          <div className="w-full">
+            <ThreeMannequinViewer
+              modelType="xbot"
+              build={build}
+              skinToneHex={skinToneHex}
+              presentation={presentation}
+              className="h-72 w-full"
+            />
+          </div>
+        ) : (
+          <div className="relative flex items-center justify-center h-60 w-full">
+            <MannequinAvatar
+              build={build}
+              skinTone={skin}
+              presentation={presentation}
+              size="lg"
+              clothingLayers={clothingLayers}
+            />
+          </div>
+        )}
+
         <p className="mt-2 text-[11px] font-semibold text-muted-foreground">
           {selected.length === 0
             ? "Tap pieces below to dress your mannequin"

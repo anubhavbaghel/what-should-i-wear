@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { RotateCw, RefreshCw, ZoomIn, ZoomOut } from "lucide-react";
+import { RotateCw, RefreshCw, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
+import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { cn } from "@/lib/utils";
 import {
   createSculptedHeadGeometry,
@@ -57,7 +59,10 @@ export interface BodyMorphConfig {
   legFullness?: number;   // 0.85 to 1.25, default 1.0
 }
 
+export type ModelPresetType = "xbot" | "michelle" | "soldier" | "base" | "procedural" | string;
+
 export interface ThreeMannequinViewerProps {
+  modelType?: ModelPresetType;
   build?: BuildType;
   skinToneHex?: string;
   presentation?: StylePresentationType;
@@ -70,6 +75,7 @@ export interface ThreeMannequinViewerProps {
 }
 
 export function ThreeMannequinViewer({
+  modelType = "xbot",
   build = "neutral",
   skinToneHex = "#D59D7B",
   presentation = "neutral",
@@ -83,12 +89,15 @@ export function ThreeMannequinViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoRotate, setAutoRotate] = useState(autoRotateDefault);
   const [isInteracting, setIsInteracting] = useState(false);
+  const [isLoadingModel, setIsLoadingModel] = useState(false);
 
   // References for Three.js instance
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const mannequinGroupRef = useRef<THREE.Group | null>(null);
+  const externalModelGroupRef = useRef<THREE.Group | null>(null);
+  const loadedModelRef = useRef<THREE.Object3D | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
   // Material refs for dynamic updates
@@ -577,6 +586,11 @@ export function ThreeMannequinViewer({
     // Initial scale & position
     mannequinGroup.position.y = 0.02;
 
+    // 7b. External 3D Model Group (Mixamo X-Bot, GLB Models)
+    const externalModelGroup = new THREE.Group();
+    externalModelGroupRef.current = externalModelGroup;
+    scene.add(externalModelGroup);
+
     // 8. Animation & Render Loop
     let lastTime = performance.now();
     const animate = () => {
@@ -607,6 +621,11 @@ export function ThreeMannequinViewer({
       if (mannequinGroupRef.current) {
         mannequinGroupRef.current.rotation.y = rot.y;
         mannequinGroupRef.current.rotation.x = rot.pitch;
+      }
+
+      if (externalModelGroupRef.current) {
+        externalModelGroupRef.current.rotation.y = rot.y;
+        externalModelGroupRef.current.rotation.x = rot.pitch;
       }
 
       renderer.render(scene, camera);
@@ -725,6 +744,137 @@ export function ThreeMannequinViewer({
     };
   }, []);
 
+  // Load external 3D model (Mixamo X-Bot, GLB models) or toggle procedural
+  useEffect(() => {
+    const extGroup = externalModelGroupRef.current;
+    const manGroup = mannequinGroupRef.current;
+    const skinMat = skinMaterialRef.current;
+
+    if (!extGroup || !manGroup) return;
+
+    if (modelType === "procedural") {
+      extGroup.visible = false;
+      manGroup.visible = true;
+      loadedModelRef.current = null;
+      setIsLoadingModel(false);
+      return;
+    }
+
+    setIsLoadingModel(true);
+
+    const targetHeight = 2.24;
+    const targetGroundY = -1.14;
+
+    function applyTransformsAndMaterials(obj: THREE.Object3D) {
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = new THREE.Vector3();
+      box.getSize(size);
+      if (size.y > 0) {
+        const scale = targetHeight / size.y;
+        obj.scale.setScalar(scale);
+        box.setFromObject(obj);
+        obj.position.y = targetGroundY - box.min.y;
+        obj.position.x = 0;
+        obj.position.z = 0;
+      }
+      obj.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          if (mesh.name === "Beta_Surface" && skinMat) {
+            mesh.material = skinMat;
+          } else if (mesh.name === "Beta_Joints") {
+            mesh.material = new THREE.MeshStandardMaterial({
+              color: new THREE.Color(0x232428),
+              metalness: 0.85,
+              roughness: 0.25,
+            });
+          }
+        }
+      });
+    }
+
+    let isCancelled = false;
+
+    if (modelType === "xbot") {
+      const fbxLoader = new FBXLoader();
+      fbxLoader.load(
+        "/models/x-bot.fbx",
+        (fbx) => {
+          if (isCancelled) return;
+          applyTransformsAndMaterials(fbx);
+          extGroup.clear();
+          extGroup.add(fbx);
+          extGroup.visible = true;
+          manGroup.visible = false;
+          loadedModelRef.current = fbx;
+          setIsLoadingModel(false);
+        },
+        undefined,
+        (err) => {
+          console.warn("FBX load failed, falling back to avatar-base.glb:", err);
+          if (isCancelled) return;
+          const gltfLoader = new GLTFLoader();
+          gltfLoader.load(
+            "/models/avatar-base.glb",
+            (gltf) => {
+              if (isCancelled) return;
+              applyTransformsAndMaterials(gltf.scene);
+              extGroup.clear();
+              extGroup.add(gltf.scene);
+              extGroup.visible = true;
+              manGroup.visible = false;
+              loadedModelRef.current = gltf.scene;
+              setIsLoadingModel(false);
+            },
+            undefined,
+            () => {
+              if (isCancelled) return;
+              manGroup.visible = true;
+              setIsLoadingModel(false);
+            }
+          );
+        }
+      );
+    } else {
+      const gltfUrl =
+        modelType === "michelle"
+          ? "/models/michelle.glb"
+          : modelType === "soldier"
+          ? "/models/soldier.glb"
+          : modelType === "base"
+          ? "/models/avatar-base.glb"
+          : modelType;
+
+      const gltfLoader = new GLTFLoader();
+      gltfLoader.load(
+        gltfUrl,
+        (gltf) => {
+          if (isCancelled) return;
+          applyTransformsAndMaterials(gltf.scene);
+          extGroup.clear();
+          extGroup.add(gltf.scene);
+          extGroup.visible = true;
+          manGroup.visible = false;
+          loadedModelRef.current = gltf.scene;
+          setIsLoadingModel(false);
+        },
+        undefined,
+        (err) => {
+          console.warn(`GLTF load failed for ${gltfUrl}:`, err);
+          if (isCancelled) return;
+          manGroup.visible = true;
+          setIsLoadingModel(false);
+        }
+      );
+    }
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [modelType]);
+
   // Morph proportions and update garments whenever build, presentation, height, or outfit changes
   useEffect(() => {
     if (!skinMaterialRef.current || !baseWearMaterialRef.current) return;
@@ -732,6 +882,18 @@ export function ThreeMannequinViewer({
     // Update material colors
     skinMaterialRef.current.color.set(skinToneHex);
     baseWearMaterialRef.current.color.set(baseWearHex);
+
+    // Update external model skin tone if active
+    if (loadedModelRef.current) {
+      loadedModelRef.current.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh && child.name === "Beta_Surface") {
+          const mesh = child as THREE.Mesh;
+          if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).color) {
+            (mesh.material as THREE.MeshStandardMaterial).color.set(skinToneHex);
+          }
+        }
+      });
+    }
 
     if (topMaterialRef.current && outfit?.topColor) {
       topMaterialRef.current.color.set(outfit.topColor);
@@ -906,8 +1068,26 @@ export function ThreeMannequinViewer({
       {/* Floating Viewport Overlay Badge */}
       <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-1.5 rounded-full border-[1.5px] border-ink bg-card px-2.5 py-1 text-[11px] font-bold shadow-sm">
         <span className="h-2 w-2 rounded-full bg-mint animate-pulse" />
-        <span>360° Studio</span>
+        <span>
+          {modelType === "xbot"
+            ? "Mixamo X-Bot 3D"
+            : modelType === "michelle"
+            ? "Mixamo Michelle 3D"
+            : modelType === "soldier"
+            ? "Soldier 3D"
+            : modelType === "base"
+            ? "3D Mannequin"
+            : "Sculpted Croquis"}
+        </span>
       </div>
+
+      {/* Loading Overlay */}
+      {isLoadingModel && (
+        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-card/60 backdrop-blur-xs z-10">
+          <Loader2 className="h-6 w-6 animate-spin text-ink" />
+          <span className="mt-2 text-xs font-semibold text-ink">Loading 3D Model…</span>
+        </div>
+      )}
 
       {/* Turntable & Reset Controls (Top Right) */}
       <div className="absolute top-3 right-3 flex items-center gap-1.5">

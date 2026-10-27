@@ -4,23 +4,26 @@ import {
   BuildType,
   StylePresentationType,
   MannequinOutfitConfig,
+  ModelPresetType,
   TopGarmentType,
   BottomGarmentType,
   ShoesGarmentType,
 } from "./ThreeMannequinViewer";
 import { cn } from "@/lib/utils";
-import { Sparkles, Check, Shirt } from "lucide-react";
+import { Sparkles, Check, Shirt, Box } from "lucide-react";
 
 export interface AvatarDesignerStudioProps {
   initialPreset?: string; // e.g. "neutral_medium", "slim_light", "curvy_dark"
   initialPresentation?: StylePresentationType;
   initialOutfit?: MannequinOutfitConfig;
+  initialModelType?: ModelPresetType;
   onChange?: (config: {
     preset: string;
     presentation: StylePresentationType;
     skinToneHex: string;
     baseWearHex: string;
     heightScale: number;
+    modelType?: ModelPresetType;
     outfit?: MannequinOutfitConfig;
   }) => void;
   onSave?: (config: {
@@ -29,11 +32,44 @@ export interface AvatarDesignerStudioProps {
     skinToneHex: string;
     baseWearHex: string;
     heightScale: number;
+    modelType?: ModelPresetType;
     outfit?: MannequinOutfitConfig;
   }) => void;
   className?: string;
   showSaveButton?: boolean;
 }
+
+export const MANNEQUIN_MODELS: {
+  id: ModelPresetType;
+  name: string;
+  badge: string;
+  desc: string;
+}[] = [
+  {
+    id: "xbot",
+    name: "Mixamo X-Bot",
+    badge: "3D Editorial",
+    desc: "Sleek faceless humanoid mannequin with joint accents",
+  },
+  {
+    id: "michelle",
+    name: "Mixamo Michelle",
+    badge: "3D Runway",
+    desc: "Realistic female fashion runway model",
+  },
+  {
+    id: "base",
+    name: "Minimalist Base",
+    badge: "3D Clean",
+    desc: "Smooth digital mannequin avatar",
+  },
+  {
+    id: "procedural",
+    name: "Sculpted Croquis",
+    badge: "Geometric",
+    desc: "Parametric croquis fashion mannequin",
+  },
+];
 
 export const CURATED_OUTFIT_PRESETS: {
   id: string;
@@ -143,6 +179,7 @@ export function AvatarDesignerStudio({
   initialPreset = "neutral_medium",
   initialPresentation = "neutral",
   initialOutfit,
+  initialModelType = "xbot",
   onChange,
   onSave,
   className,
@@ -154,6 +191,7 @@ export function AvatarDesignerStudio({
     "medium",
   ];
 
+  const [modelType, setModelType] = useState<ModelPresetType>(initialModelType);
   const [build, setBuild] = useState<BuildType>(
     BUILDS.some((b) => b.id === initialBuild) ? initialBuild : "neutral"
   );
@@ -191,6 +229,7 @@ export function AvatarDesignerStudio({
       const saved = localStorage.getItem("atelier_avatar_config");
       if (saved) {
         const parsed = JSON.parse(saved);
+        if (parsed.modelType) setModelType(parsed.modelType);
         if (parsed.build && BUILDS.some((b) => b.id === parsed.build)) setBuild(parsed.build);
         if (parsed.presentation) setPresentation(parsed.presentation);
         if (parsed.skinToneHex) setSkinToneHex(parsed.skinToneHex);
@@ -218,6 +257,7 @@ export function AvatarDesignerStudio({
       heightScale,
       build,
       bodyMorphs,
+      modelType,
       outfit: outfitConfig,
     };
     try {
@@ -228,7 +268,7 @@ export function AvatarDesignerStudio({
     if (onChange) {
       onChange(cfg);
     }
-  }, [mappedPreset, presentation, skinToneHex, baseWearHex, heightScale, build, bodyMorphs, outfitConfig, onChange]);
+  }, [mappedPreset, presentation, skinToneHex, baseWearHex, heightScale, build, bodyMorphs, modelType, outfitConfig, onChange]);
 
   function handleSave() {
     const cfg = {
@@ -238,6 +278,7 @@ export function AvatarDesignerStudio({
       baseWearHex,
       heightScale,
       build,
+      modelType,
       outfit: outfitConfig,
     };
     try {
@@ -255,6 +296,7 @@ export function AvatarDesignerStudio({
       {/* 3D Interactive Viewport */}
       <div>
         <ThreeMannequinViewer
+          modelType={modelType}
           build={build}
           skinToneHex={skinToneHex}
           presentation={presentation}
@@ -322,6 +364,46 @@ export function AvatarDesignerStudio({
       {/* Tab 1: Figure & Build */}
       {activeTab === "figure" && (
         <div className="space-y-5 animate-in fade-in-50 duration-200">
+          {/* 3D Mannequin Model */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground flex items-center gap-1.5">
+                <Box className="h-3.5 w-3.5 text-ink" /> 3D Mannequin Model
+              </span>
+              <span className="text-[10px] font-bold text-ink bg-sun/60 px-2 py-0.5 rounded-full border border-ink/20">
+                Mixamo & Three.js
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {MANNEQUIN_MODELS.map((m) => {
+                const active = modelType === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setModelType(m.id)}
+                    className={cn(
+                      "card-pop p-2.5 text-left transition-all active:scale-95 cursor-pointer",
+                      active
+                        ? "border-ink bg-sun shadow-[2px_2px_0px_#1B1B1D]"
+                        : "border-ink/20 bg-card hover:border-ink hover:bg-muted/50"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground">{m.name}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                        {m.badge}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] text-muted-foreground leading-snug line-clamp-2">
+                      {m.desc}
+                    </p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Style Vibe */}
           <div>
             <span className="mb-2 block text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
