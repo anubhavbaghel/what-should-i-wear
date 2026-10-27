@@ -9,45 +9,35 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedStyleRouteImport } from './routes/_authenticated/style'
-import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
-import { Route as AuthenticatedOutfitsRouteImport } from './routes/_authenticated/outfits'
-import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedClosetRouteImport } from './routes/_authenticated/closet'
-import { Route as AuthenticatedOutfitsOutfitIdRouteImport } from './routes/_authenticated/outfits.$outfitId'
-import { Route as AuthenticatedClosetAddRouteImport } from './routes/_authenticated/closet.add'
+import { Route as AuthenticatedOnboardingRouteImport } from './routes/_authenticated/onboarding'
+import { Route as AuthenticatedOutfitsRouteImport } from './routes/_authenticated/outfits'
+import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
+import { Route as AuthenticatedStyleRouteImport } from './routes/_authenticated/style'
 import { Route as AuthenticatedClosetItemIdRouteImport } from './routes/_authenticated/closet.$itemId'
+import { Route as AuthenticatedClosetAddRouteImport } from './routes/_authenticated/closet.add'
+import { Route as AuthenticatedOutfitsOutfitIdRouteImport } from './routes/_authenticated/outfits.$outfitId'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedStyleRoute = AuthenticatedStyleRouteImport.update({
-  id: '/style',
-  path: '/style',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedOutfitsRoute = AuthenticatedOutfitsRouteImport.update({
-  id: '/outfits',
-  path: '/outfits',
+const AuthenticatedClosetRoute = AuthenticatedClosetRouteImport.update({
+  id: '/closet',
+  path: '/closet',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
@@ -55,27 +45,37 @@ const AuthenticatedOnboardingRoute = AuthenticatedOnboardingRouteImport.update({
   path: '/onboarding',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedClosetRoute = AuthenticatedClosetRouteImport.update({
-  id: '/closet',
-  path: '/closet',
+const AuthenticatedOutfitsRoute = AuthenticatedOutfitsRouteImport.update({
+  id: '/outfits',
+  path: '/outfits',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedOutfitsOutfitIdRoute =
-  AuthenticatedOutfitsOutfitIdRouteImport.update({
-    id: '/$outfitId',
-    path: '/$outfitId',
-    getParentRoute: () => AuthenticatedOutfitsRoute,
-  } as any)
-const AuthenticatedClosetAddRoute = AuthenticatedClosetAddRouteImport.update({
-  id: '/add',
-  path: '/add',
-  getParentRoute: () => AuthenticatedClosetRoute,
+const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedStyleRoute = AuthenticatedStyleRouteImport.update({
+  id: '/style',
+  path: '/style',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedClosetItemIdRoute =
   AuthenticatedClosetItemIdRouteImport.update({
     id: '/$itemId',
     path: '/$itemId',
     getParentRoute: () => AuthenticatedClosetRoute,
+  } as any)
+const AuthenticatedClosetAddRoute = AuthenticatedClosetAddRouteImport.update({
+  id: '/add',
+  path: '/add',
+  getParentRoute: () => AuthenticatedClosetRoute,
+} as any)
+const AuthenticatedOutfitsOutfitIdRoute =
+  AuthenticatedOutfitsOutfitIdRouteImport.update({
+    id: '/$outfitId',
+    path: '/$outfitId',
+    getParentRoute: () => AuthenticatedOutfitsRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -164,11 +164,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -178,32 +178,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/style': {
-      id: '/_authenticated/style'
-      path: '/style'
-      fullPath: '/style'
-      preLoaderRoute: typeof AuthenticatedStyleRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/profile': {
-      id: '/_authenticated/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof AuthenticatedProfileRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/outfits': {
-      id: '/_authenticated/outfits'
-      path: '/outfits'
-      fullPath: '/outfits'
-      preLoaderRoute: typeof AuthenticatedOutfitsRouteImport
+    '/_authenticated/closet': {
+      id: '/_authenticated/closet'
+      path: '/closet'
+      fullPath: '/closet'
+      preLoaderRoute: typeof AuthenticatedClosetRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/onboarding': {
@@ -213,19 +199,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedOnboardingRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/closet': {
-      id: '/_authenticated/closet'
-      path: '/closet'
-      fullPath: '/closet'
-      preLoaderRoute: typeof AuthenticatedClosetRouteImport
+    '/_authenticated/outfits': {
+      id: '/_authenticated/outfits'
+      path: '/outfits'
+      fullPath: '/outfits'
+      preLoaderRoute: typeof AuthenticatedOutfitsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/outfits/$outfitId': {
-      id: '/_authenticated/outfits/$outfitId'
-      path: '/$outfitId'
-      fullPath: '/outfits/$outfitId'
-      preLoaderRoute: typeof AuthenticatedOutfitsOutfitIdRouteImport
-      parentRoute: typeof AuthenticatedOutfitsRoute
+    '/_authenticated/profile': {
+      id: '/_authenticated/profile'
+      path: '/profile'
+      fullPath: '/profile'
+      preLoaderRoute: typeof AuthenticatedProfileRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/style': {
+      id: '/_authenticated/style'
+      path: '/style'
+      fullPath: '/style'
+      preLoaderRoute: typeof AuthenticatedStyleRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/closet/$itemId': {
+      id: '/_authenticated/closet/$itemId'
+      path: '/$itemId'
+      fullPath: '/closet/$itemId'
+      preLoaderRoute: typeof AuthenticatedClosetItemIdRouteImport
+      parentRoute: typeof AuthenticatedClosetRoute
     }
     '/_authenticated/closet/add': {
       id: '/_authenticated/closet/add'
@@ -234,12 +234,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedClosetAddRouteImport
       parentRoute: typeof AuthenticatedClosetRoute
     }
-    '/_authenticated/closet/$itemId': {
-      id: '/_authenticated/closet/$itemId'
-      path: '/$itemId'
-      fullPath: '/closet/$itemId'
-      preLoaderRoute: typeof AuthenticatedClosetItemIdRouteImport
-      parentRoute: typeof AuthenticatedClosetRoute
+    '/_authenticated/outfits/$outfitId': {
+      id: '/_authenticated/outfits/$outfitId'
+      path: '/$outfitId'
+      fullPath: '/outfits/$outfitId'
+      preLoaderRoute: typeof AuthenticatedOutfitsOutfitIdRouteImport
+      parentRoute: typeof AuthenticatedOutfitsRoute
     }
   }
 }
