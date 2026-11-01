@@ -5,6 +5,19 @@ import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { cn } from "@/lib/utils";
 import {
+  HairstyleType,
+  EyewearType,
+  createFadeHairGeometry,
+  createWavyCurtainsHair,
+  createSleekBobHair,
+  createHighPonytailHair,
+  createAfroCurlsHair,
+  createChicBeanie,
+  createDesignerSunglasses,
+  createHairMaterial,
+} from "./HairstyleGeometries";
+export type { HairstyleType, EyewearType };
+import {
   createSculptedHeadGeometry,
   createNeckGeometry,
   createTorsoGeometry,
@@ -65,6 +78,9 @@ export interface ThreeMannequinViewerProps {
   modelType?: ModelPresetType;
   build?: BuildType;
   skinToneHex?: string;
+  hairStyle?: HairstyleType;
+  hairColorHex?: string;
+  eyewear?: EyewearType;
   presentation?: StylePresentationType;
   baseWearHex?: string;
   heightScale?: number; // 0.9 to 1.1
@@ -78,6 +94,9 @@ export function ThreeMannequinViewer({
   modelType = "xbot",
   build = "neutral",
   skinToneHex = "#D59D7B",
+  hairStyle = "wavy_curtains",
+  hairColorHex = "#1E1E22",
+  eyewear = "none",
   presentation = "neutral",
   baseWearHex = "#232326",
   heightScale = 1.0,
@@ -98,6 +117,7 @@ export function ThreeMannequinViewer({
   const mannequinGroupRef = useRef<THREE.Group | null>(null);
   const externalModelGroupRef = useRef<THREE.Group | null>(null);
   const loadedModelRef = useRef<THREE.Object3D | null>(null);
+  const headAccessoriesGroupRef = useRef<THREE.Group | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
   // Material refs for dynamic updates
@@ -874,6 +894,63 @@ export function ThreeMannequinViewer({
       isCancelled = true;
     };
   }, [modelType]);
+
+  // Rebuild modular head accessories (hairstyles & eyewear) and attach to active avatar head socket
+  useEffect(() => {
+    let headGroup = headAccessoriesGroupRef.current;
+    if (!headGroup) {
+      headGroup = new THREE.Group();
+      headAccessoriesGroupRef.current = headGroup;
+    }
+
+    const manGroup = mannequinGroupRef.current;
+    const extGroup = externalModelGroupRef.current;
+
+    // Position socket based on active model head coordinates
+    if (modelType === "procedural") {
+      if (manGroup && headGroup.parent !== manGroup) {
+        manGroup.add(headGroup);
+      }
+      headGroup.position.set(0, 1.0, 0);
+      headGroup.scale.set(1.0, 1.0, 1.0);
+    } else {
+      if (extGroup && headGroup.parent !== extGroup) {
+        extGroup.add(headGroup);
+      }
+      if (modelType === "michelle") {
+        headGroup.position.set(0, 0.85, -0.05);
+        headGroup.scale.set(0.95, 0.95, 0.95);
+      } else {
+        headGroup.position.set(0, 0.95, 0.0);
+        headGroup.scale.set(1.0, 1.0, 1.0);
+      }
+    }
+
+    headGroup.clear();
+
+    const hairMat = createHairMaterial({ colorHex: hairColorHex });
+
+    if (hairStyle === "fade") {
+      const geo = createFadeHairGeometry();
+      const mesh = new THREE.Mesh(geo, hairMat);
+      mesh.castShadow = true;
+      headGroup.add(mesh);
+    } else if (hairStyle === "wavy_curtains") {
+      headGroup.add(createWavyCurtainsHair(hairMat));
+    } else if (hairStyle === "sleek_bob") {
+      headGroup.add(createSleekBobHair(hairMat));
+    } else if (hairStyle === "high_ponytail") {
+      headGroup.add(createHighPonytailHair(hairMat));
+    } else if (hairStyle === "afro_curls") {
+      headGroup.add(createAfroCurlsHair(hairMat));
+    } else if (hairStyle === "chic_beanie") {
+      headGroup.add(createChicBeanie(hairColorHex));
+    }
+
+    if (eyewear === "designer_sunglasses") {
+      headGroup.add(createDesignerSunglasses());
+    }
+  }, [modelType, hairStyle, hairColorHex, eyewear]);
 
   // Morph proportions and update garments whenever build, presentation, height, or outfit changes
   useEffect(() => {

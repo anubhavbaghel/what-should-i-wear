@@ -5,18 +5,23 @@ import {
   StylePresentationType,
   MannequinOutfitConfig,
   ModelPresetType,
+  HairstyleType,
+  EyewearType,
   TopGarmentType,
   BottomGarmentType,
   ShoesGarmentType,
 } from "./ThreeMannequinViewer";
 import { cn } from "@/lib/utils";
-import { Sparkles, Check, Shirt, Box } from "lucide-react";
+import { Sparkles, Check, Shirt, Box, Glasses } from "lucide-react";
 
 export interface AvatarDesignerStudioProps {
   initialPreset?: string; // e.g. "neutral_medium", "slim_light", "curvy_dark"
   initialPresentation?: StylePresentationType;
   initialOutfit?: MannequinOutfitConfig;
   initialModelType?: ModelPresetType;
+  initialHairStyle?: HairstyleType;
+  initialHairColorHex?: string;
+  initialEyewear?: EyewearType;
   onChange?: (config: {
     preset: string;
     presentation: StylePresentationType;
@@ -24,6 +29,9 @@ export interface AvatarDesignerStudioProps {
     baseWearHex: string;
     heightScale: number;
     modelType?: ModelPresetType;
+    hairStyle?: HairstyleType;
+    hairColorHex?: string;
+    eyewear?: EyewearType;
     outfit?: MannequinOutfitConfig;
   }) => void;
   onSave?: (config: {
@@ -33,6 +41,9 @@ export interface AvatarDesignerStudioProps {
     baseWearHex: string;
     heightScale: number;
     modelType?: ModelPresetType;
+    hairStyle?: HairstyleType;
+    hairColorHex?: string;
+    eyewear?: EyewearType;
     outfit?: MannequinOutfitConfig;
   }) => void;
   className?: string;
@@ -46,22 +57,22 @@ export const MANNEQUIN_MODELS: {
   desc: string;
 }[] = [
   {
+    id: "michelle",
+    name: "Female Digital Twin",
+    badge: "Runway Stylized",
+    desc: "Sleek female stylized fashion model with runway proportions",
+  },
+  {
+    id: "base",
+    name: "Male Digital Twin",
+    badge: "Modern Stylized",
+    desc: "Athletic male stylized humanoid fashion avatar",
+  },
+  {
     id: "xbot",
     name: "Mixamo X-Bot",
     badge: "3D Editorial",
     desc: "Sleek faceless humanoid mannequin with joint accents",
-  },
-  {
-    id: "michelle",
-    name: "Mixamo Michelle",
-    badge: "3D Runway",
-    desc: "Realistic female fashion runway model",
-  },
-  {
-    id: "base",
-    name: "Minimalist Base",
-    badge: "3D Clean",
-    desc: "Smooth digital mannequin avatar",
   },
   {
     id: "procedural",
@@ -69,6 +80,31 @@ export const MANNEQUIN_MODELS: {
     badge: "Geometric",
     desc: "Parametric croquis fashion mannequin",
   },
+];
+
+export const HAIRSTYLES: { id: HairstyleType; label: string; desc: string }[] = [
+  { id: "wavy_curtains", label: "Wavy Curtains", desc: "90s / Gen-Z relaxed parted flow" },
+  { id: "fade", label: "Textured Fade", desc: "Clean taper with textured crop top" },
+  { id: "sleek_bob", label: "Editorial Bob", desc: "Chic jaw-length straight bob" },
+  { id: "high_ponytail", label: "High Ponytail", desc: "Sleek pulled-back runway look" },
+  { id: "afro_curls", label: "Afro Curls", desc: "Voluminous textured crown" },
+  { id: "chic_beanie", label: "Streetwear Beanie", desc: "Ribbed knit slouchy beanie" },
+  { id: "none", label: "No Hair", desc: "Clean buzz / minimal profile" },
+];
+
+export const HAIR_COLORS = [
+  { id: "jet_black", label: "Jet Black", hex: "#18181A" },
+  { id: "espresso", label: "Dark Espresso", hex: "#3B281C" },
+  { id: "chestnut", label: "Chestnut Brown", hex: "#63432B" },
+  { id: "honey_blonde", label: "Honey Blonde", hex: "#C79C64" },
+  { id: "copper_auburn", label: "Auburn Copper", hex: "#8A3824" },
+  { id: "platinum_ash", label: "Platinum Ash", hex: "#D6D1CA" },
+  { id: "pastel_lilac", label: "Pastel Lilac", hex: "#8D80AD" },
+];
+
+export const EYEWEAR_OPTIONS: { id: EyewearType; label: string }[] = [
+  { id: "none", label: "No Glasses" },
+  { id: "designer_sunglasses", label: "✦ Acetate Sunglasses" },
 ];
 
 export const CURATED_OUTFIT_PRESETS: {
@@ -179,7 +215,10 @@ export function AvatarDesignerStudio({
   initialPreset = "neutral_medium",
   initialPresentation = "neutral",
   initialOutfit,
-  initialModelType = "xbot",
+  initialModelType = "michelle",
+  initialHairStyle = "wavy_curtains",
+  initialHairColorHex = "#18181A",
+  initialEyewear = "none",
   onChange,
   onSave,
   className,
@@ -192,6 +231,10 @@ export function AvatarDesignerStudio({
   ];
 
   const [modelType, setModelType] = useState<ModelPresetType>(initialModelType);
+  const [hairStyle, setHairStyle] = useState<HairstyleType>(initialHairStyle);
+  const [hairColorHex, setHairColorHex] = useState(initialHairColorHex);
+  const [eyewear, setEyewear] = useState<EyewearType>(initialEyewear);
+
   const [build, setBuild] = useState<BuildType>(
     BUILDS.some((b) => b.id === initialBuild) ? initialBuild : "neutral"
   );
@@ -204,7 +247,7 @@ export function AvatarDesignerStudio({
   const [baseWearHex, setBaseWearHex] = useState(BASE_WEAR_COLORS[0].hex);
   const [heightScale, setHeightScale] = useState(1.0);
 
-  const [activeTab, setActiveTab] = useState<"figure" | "skin" | "base" | "wardrobe">("wardrobe");
+  const [activeTab, setActiveTab] = useState<"figure" | "hair" | "skin" | "base" | "wardrobe">("wardrobe");
   const [outfitConfig, setOutfitConfig] = useState<MannequinOutfitConfig>(
     initialOutfit || CURATED_OUTFIT_PRESETS[0].outfit
   );
@@ -230,6 +273,9 @@ export function AvatarDesignerStudio({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.modelType) setModelType(parsed.modelType);
+        if (parsed.hairStyle) setHairStyle(parsed.hairStyle);
+        if (parsed.hairColorHex) setHairColorHex(parsed.hairColorHex);
+        if (parsed.eyewear) setEyewear(parsed.eyewear);
         if (parsed.build && BUILDS.some((b) => b.id === parsed.build)) setBuild(parsed.build);
         if (parsed.presentation) setPresentation(parsed.presentation);
         if (parsed.skinToneHex) setSkinToneHex(parsed.skinToneHex);
@@ -258,6 +304,9 @@ export function AvatarDesignerStudio({
       build,
       bodyMorphs,
       modelType,
+      hairStyle,
+      hairColorHex,
+      eyewear,
       outfit: outfitConfig,
     };
     try {
@@ -268,7 +317,7 @@ export function AvatarDesignerStudio({
     if (onChange) {
       onChange(cfg);
     }
-  }, [mappedPreset, presentation, skinToneHex, baseWearHex, heightScale, build, bodyMorphs, modelType, outfitConfig, onChange]);
+  }, [mappedPreset, presentation, skinToneHex, baseWearHex, heightScale, build, bodyMorphs, modelType, hairStyle, hairColorHex, eyewear, outfitConfig, onChange]);
 
   function handleSave() {
     const cfg = {
@@ -279,6 +328,9 @@ export function AvatarDesignerStudio({
       heightScale,
       build,
       modelType,
+      hairStyle,
+      hairColorHex,
+      eyewear,
       outfit: outfitConfig,
     };
     try {
@@ -299,6 +351,9 @@ export function AvatarDesignerStudio({
           modelType={modelType}
           build={build}
           skinToneHex={skinToneHex}
+          hairStyle={hairStyle}
+          hairColorHex={hairColorHex}
+          eyewear={eyewear}
           presentation={presentation}
           baseWearHex={baseWearHex}
           heightScale={heightScale}
@@ -334,6 +389,19 @@ export function AvatarDesignerStudio({
           )}
         >
           Figure & Build
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("hair")}
+          className={cn(
+            "rounded-full border-[1.5px] px-3.5 py-1 text-xs font-bold transition-all shrink-0 flex items-center gap-1.5",
+            activeTab === "hair"
+              ? "border-ink bg-sun shadow-[2px_2px_0px_#1B1B1D]"
+              : "border-transparent text-muted-foreground hover:text-ink"
+          )}
+        >
+          <Sparkles className="h-3 w-3" />
+          Hair & Glasses
         </button>
         <button
           type="button"
@@ -621,6 +689,110 @@ export function AvatarDesignerStudio({
                   className="w-full accent-pink h-1.5 rounded-lg bg-ink/15 cursor-pointer"
                 />
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Hair & Glasses */}
+      {activeTab === "hair" && (
+        <div className="space-y-6 animate-in fade-in-50 duration-200">
+          {/* Hairstyle Selector */}
+          <div>
+            <span className="mb-2.5 block text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+              Hairstyle Selection
+            </span>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {HAIRSTYLES.map((h) => {
+                const active = hairStyle === h.id;
+                return (
+                  <button
+                    key={h.id}
+                    type="button"
+                    onClick={() => setHairStyle(h.id)}
+                    className={cn(
+                      "card-pop p-2.5 text-left transition-all active:scale-95 cursor-pointer",
+                      active
+                        ? "border-ink bg-sun shadow-[2px_2px_0px_#1B1B1D]"
+                        : "border-ink/20 bg-card hover:border-ink hover:bg-muted/50"
+                    )}
+                  >
+                    <span className="text-xs font-bold text-foreground block">{h.label}</span>
+                    <span className="text-[11px] text-muted-foreground mt-0.5 line-clamp-1 block">
+                      {h.desc}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Hair Color Palette */}
+          {hairStyle !== "none" && (
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                  Hair Color Palette
+                </span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {HAIR_COLORS.find((c) => c.hex === hairColorHex)?.label ?? "Custom"}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+                {HAIR_COLORS.map((hc) => {
+                  const active = hairColorHex === hc.hex;
+                  return (
+                    <button
+                      key={hc.id}
+                      type="button"
+                      onClick={() => setHairColorHex(hc.hex)}
+                      className={cn(
+                        "flex flex-col items-center gap-1.5 rounded-2xl border-[1.5px] p-2 transition-all active:scale-95 cursor-pointer",
+                        active
+                          ? "border-ink bg-card shadow-[2px_2px_0px_#1B1B1D]"
+                          : "border-transparent hover:border-ink/20"
+                      )}
+                    >
+                      <span
+                        className="h-7 w-7 rounded-full border border-ink/30 shadow-xs"
+                        style={{ backgroundColor: hc.hex }}
+                      />
+                      <span className="text-[10px] font-bold text-foreground text-center line-clamp-1">
+                        {hc.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Eyewear & Accessories */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <Glasses className="h-3.5 w-3.5 text-ink" />
+              <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                Eyewear & Face Accessories
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {EYEWEAR_OPTIONS.map((opt) => {
+                const active = eyewear === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setEyewear(opt.id)}
+                    className={cn(
+                      "chip text-xs py-2 text-center",
+                      active && "data-active"
+                    )}
+                    data-active={active}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

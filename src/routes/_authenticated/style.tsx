@@ -75,6 +75,34 @@ function StylePage() {
   const [generating, setGenerating] = useState(false);
   const [showFigureSettings, setShowFigureSettings] = useState(false);
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
+  const [avatarConfig, setAvatarConfig] = useState<{
+    modelType: string;
+    hairStyle: string;
+    hairColorHex: string;
+    eyewear: string;
+  }>({
+    modelType: "michelle",
+    hairStyle: "wavy_curtains",
+    hairColorHex: "#18181A",
+    eyewear: "none",
+  });
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("atelier_avatar_config");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setAvatarConfig({
+          modelType: parsed.modelType || "michelle",
+          hairStyle: parsed.hairStyle || "wavy_curtains",
+          hairColorHex: parsed.hairColorHex || "#18181A",
+          eyewear: parsed.eyewear || "none",
+        });
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     const p = profileData?.profile?.mannequin_preset as Preset | undefined;
@@ -211,9 +239,12 @@ function StylePage() {
         {viewMode === "3d" ? (
           <div className="w-full">
             <ThreeMannequinViewer
-              modelType="xbot"
+              modelType={avatarConfig.modelType as any}
               build={build}
               skinToneHex={skinToneHex}
+              hairStyle={avatarConfig.hairStyle as any}
+              hairColorHex={avatarConfig.hairColorHex}
+              eyewear={avatarConfig.eyewear as any}
               presentation={presentation}
               className="h-72 w-full"
             />
