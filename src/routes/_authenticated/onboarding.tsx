@@ -8,6 +8,7 @@ import { ChevronRight, Loader2, Sparkles, Camera, Shirt, RotateCcw, LogOut } fro
 import { completeOnboarding, getProfile } from "@/lib/outfits.functions";
 import { AvatarDesignerStudio } from "@/components/AvatarDesignerStudio";
 import { StylePresentationType } from "@/components/ThreeMannequinViewer";
+import { AvatarConfig } from "@/lib/avatar.types";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/onboarding")({
@@ -36,13 +37,7 @@ export default function OnboardingPage() {
   const [preset, setPreset] = useState("neutral_medium");
   const [presentation, setPresentation] = useState<StylePresentationType>("feminine");
   const [saving, setSaving] = useState(false);
-  const [avatarConfig, setAvatarConfig] = useState<{
-    build?: "slim" | "neutral" | "curvy";
-    skinToneHex?: string;
-    presentation?: StylePresentationType;
-    baseWearHex?: string;
-    heightScale?: number;
-  } | undefined>(undefined);
+  const [avatarConfig, setAvatarConfig] = useState<AvatarConfig | undefined>(undefined);
 
   useEffect(() => {
     const p = profileData?.profile;
@@ -94,6 +89,7 @@ export default function OnboardingPage() {
         <AvatarDesignerStudio
           initialPreset={preset}
           initialPresentation={presentation}
+          initialConfig={avatarConfig}
           currentStep={1}
           onContinue={() => setStep(2)}
           onBack={() => setStep(0)}
@@ -102,7 +98,7 @@ export default function OnboardingPage() {
           onChange={(cfg) => {
             setPreset(cfg.preset);
             setPresentation(cfg.presentation);
-            setAvatarConfig(cfg);
+            if (cfg.avatarConfig) setAvatarConfig(cfg.avatarConfig);
           }}
         />
       </div>

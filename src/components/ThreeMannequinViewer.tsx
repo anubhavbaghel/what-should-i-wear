@@ -1,42 +1,36 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { RotateCw, RefreshCw, Plus, Minus, Undo2, Loader2 } from "lucide-react";
+import { RefreshCw, Plus, Minus, Undo2, Loader2 } from "lucide-react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { cn } from "@/lib/utils";
 import type { HairstyleType, EyewearType } from "./HairstyleGeometries";
-export type { HairstyleType, EyewearType };
+import {
+  BodyMorphConfig,
+  MannequinOutfitConfig,
+  TopGarmentType,
+  BottomGarmentType,
+  ShoesGarmentType,
+  CameraFocusTarget,
+  FashionStanceType,
+  BuildType,
+  StylePresentation as StylePresentationType,
+} from "@/lib/avatar.types";
 
-export type BuildType = "slim" | "neutral" | "curvy";
-export type StylePresentationType = "neutral" | "masculine" | "feminine";
-
-export type TopGarmentType = "none" | "tee" | "shirt" | "jacket";
-export type BottomGarmentType = "none" | "trousers" | "wide_chinos" | "shorts";
-export type ShoesGarmentType = "none" | "sneakers" | "loafers";
-
-export interface MannequinOutfitConfig {
-  topType?: TopGarmentType;
-  topColor?: string;
-  bottomType?: BottomGarmentType;
-  bottomColor?: string;
-  shoesType?: ShoesGarmentType;
-  shoesColor?: string;
-}
-
-export interface BodyMorphConfig {
-  shoulderWidth?: number; // 0.85 to 1.25, default 1.0
-  chestBust?: number;     // 0.85 to 1.30, default 1.0
-  waistScale?: number;    // 0.80 to 1.25, default 1.0
-  hipWidth?: number;      // 0.85 to 1.35, default 1.0
-  legFullness?: number;   // 0.85 to 1.25, default 1.0
-}
+export type {
+  HairstyleType,
+  EyewearType,
+  BuildType,
+  StylePresentationType,
+  TopGarmentType,
+  BottomGarmentType,
+  ShoesGarmentType,
+  MannequinOutfitConfig,
+  BodyMorphConfig,
+  CameraFocusTarget,
+  FashionStanceType,
+};
 
 export type ModelPresetType = "/models/female-twin.glb" | "/models/male-twin.glb" | "female" | "male" | string;
-export type CameraFocusTarget = "full" | "face" | "torso" | "shoes";
-export type FashionStanceType =
-  | "runway_confident"
-  | "casual_streetwear"
-  | "editorial_chic"
-  | "neutral_pose";
 
 export interface ThreeMannequinViewerProps {
   modelType?: ModelPresetType;
@@ -47,7 +41,7 @@ export interface ThreeMannequinViewerProps {
   eyewear?: EyewearType;
   presentation?: StylePresentationType;
   baseWearHex?: string;
-  heightScale?: number; // 0.9 to 1.1
+  heightScale?: number; // 0.88 to 1.12
   bodyMorphs?: BodyMorphConfig;
   className?: string;
   autoRotateDefault?: boolean;
@@ -92,8 +86,13 @@ export function ThreeMannequinViewer({
   const externalModelGroupRef = useRef<THREE.Group | null>(null);
   const loadedModelRef = useRef<THREE.Object3D | null>(null);
   const isFemaleModelRef = useRef<boolean>(true);
+
+  // Armature Transform Cache (Bind Poses)
   const modelBonesRef = useRef<Record<string, THREE.Bone>>({});
   const initialBoneQuatsRef = useRef<Record<string, THREE.Quaternion>>({});
+  const initialBonePositionsRef = useRef<Record<string, THREE.Vector3>>({});
+  const initialBoneScalesRef = useRef<Record<string, THREE.Vector3>>({});
+
   const modularMeshesRef = useRef<{
     head?: THREE.SkinnedMesh;
     body?: THREE.SkinnedMesh;
@@ -532,6 +531,71 @@ export function ThreeMannequinViewer({
     }
   };
 
+  /**
+   * Applies controlled real-time body proportions by transforming the actual
+   * skeleton bones relative to cached bind-pose transforms.
+   * Modifies shoulders, chest, waist, and hips synchronously with clothing.
+   */
+  function applyBodyProportions(morphs?: BodyMorphConfig) {
+    const bones = modelBonesRef.current;
+    const initPositions = initialBonePositionsRef.current;
+    const initScales = initialBoneScalesRef.current;
+    if (!bones || Object.keys(bones).length === 0) return;
+
+    // Conservative limits to maintain natural silhouette
+    const shoulderMult = Math.max(0.75, Math.min(1.35, morphs?.shoulderWidth ?? 1.0));
+    const waistMult = Math.max(0.75, Math.min(1.35, morphs?.waistScale ?? 1.0));
+    const hipMult = Math.max(0.80, Math.min(1.35, morphs?.hipWidth ?? 1.0));
+    const chestMult = Math.max(0.80, Math.min(1.30, morphs?.chestBust ?? 1.0));
+
+    // 1. Shoulders: offset LeftShoulder & RightShoulder in X relative to Spine2
+    if (bones.leftshoulder && initPositions.leftshoulder) {
+      bones.leftshoulder.position.x = initPositions.leftshoulder.x * shoulderMult;
+    }
+    if (bones.rightshoulder && initPositions.rightshoulder) {
+      bones.rightshoulder.position.x = initPositions.rightshoulder.x * shoulderMult;
+    }
+
+    // 2. Chest (Spine2): scale in X and Z, counter-scale Neck so head/neck don't stretch
+    if (bones.spine2 && initScales.spine2) {
+      const chestX = initScales.spine2.x * chestMult * (1 + (shoulderMult - 1) * 0.35);
+      const chestZ = initScales.spine2.z * (1 + (chestMult - 1) * 0.8);
+      bones.spine2.scale.set(chestX, initScales.spine2.y, chestZ);
+
+      if (bones.neck && initScales.neck) {
+        bones.neck.scale.set(
+          initScales.neck.x / chestX,
+          initScales.neck.y,
+          initScales.neck.z / chestZ
+        );
+      }
+    }
+
+    // 3. Waist: scale Spine & Spine1 in X and Z
+    if (bones.spine && initScales.spine) {
+      bones.spine.scale.set(
+        initScales.spine.x * waistMult,
+        initScales.spine.y,
+        initScales.spine.z * (1 + (waistMult - 1) * 0.75)
+      );
+    }
+    if (bones.spine1 && initScales.spine1) {
+      bones.spine1.scale.set(
+        initScales.spine1.x * (1 + (waistMult - 1) * 0.8),
+        initScales.spine1.y,
+        initScales.spine1.z * (1 + (waistMult - 1) * 0.6)
+      );
+    }
+
+    // 4. Hips: offset LeftUpLeg & RightUpLeg in X
+    if (bones.leftupleg && initPositions.leftupleg) {
+      bones.leftupleg.position.x = initPositions.leftupleg.x * hipMult;
+    }
+    if (bones.rightupleg && initPositions.rightupleg) {
+      bones.rightupleg.position.x = initPositions.rightupleg.x * hipMult;
+    }
+  }
+
   useEffect(() => {
     const extGroup = externalModelGroupRef.current;
     if (!extGroup) return;
@@ -565,6 +629,9 @@ export function ThreeMannequinViewer({
 
       const boneMap: Record<string, THREE.Bone> = {};
       const initialQuats: Record<string, THREE.Quaternion> = {};
+      const initialPositions: Record<string, THREE.Vector3> = {};
+      const initialScales: Record<string, THREE.Vector3> = {};
+
       const meshes: {
         head?: THREE.SkinnedMesh;
         body?: THREE.SkinnedMesh;
@@ -582,6 +649,8 @@ export function ThreeMannequinViewer({
           const raw = child.name.replace("mixamorig:", "").replace("mixamorig", "").replace("_", "").toLowerCase();
           boneMap[raw] = child as THREE.Bone;
           initialQuats[raw] = child.quaternion.clone();
+          initialPositions[raw] = child.position.clone();
+          initialScales[raw] = child.scale.clone();
         }
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.SkinnedMesh;
@@ -609,6 +678,8 @@ export function ThreeMannequinViewer({
 
       modelBonesRef.current = boneMap;
       initialBoneQuatsRef.current = initialQuats;
+      initialBonePositionsRef.current = initialPositions;
+      initialBoneScalesRef.current = initialScales;
       modularMeshesRef.current = meshes;
     }
 
@@ -625,6 +696,7 @@ export function ThreeMannequinViewer({
         loadedModelRef.current = gltf.scene;
         setIsLoadingModel(false);
         applyFashionStance(stance);
+        applyBodyProportions(bodyMorphs);
         updateModularTwin();
       },
       undefined,
@@ -699,12 +771,17 @@ export function ThreeMannequinViewer({
     applyFashionStance(stance);
   }, [stance, modelType]);
 
+  // Re-apply body proportions and height whenever bodyMorphs or heightScale changes
   useEffect(() => {
-    updateModularTwin();
+    applyBodyProportions(bodyMorphs);
     if (externalModelGroupRef.current) {
       externalModelGroupRef.current.scale.set(1.0, heightScale, 1.0);
     }
-  }, [skinToneHex, heightScale, outfit, hairStyle, hairColorHex, eyewear]);
+  }, [bodyMorphs, build, heightScale]);
+
+  useEffect(() => {
+    updateModularTwin();
+  }, [skinToneHex, outfit, hairStyle, hairColorHex, eyewear]);
 
   function resetView() {
     rotationRef.current.targetY = 0;

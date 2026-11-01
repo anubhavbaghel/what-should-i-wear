@@ -10,20 +10,24 @@ function aiKey() {
   return key || null;
 }
 
-const MANNEQUIN_PRESETS = [
-  "neutral_light",
-  "neutral_medium",
-  "neutral_dark",
-  "curvy_light",
-  "curvy_medium",
-  "curvy_dark",
-  "slim_light",
-  "slim_medium",
-  "slim_dark",
-] as const;
+import {
+  MANNEQUIN_PRESETS,
+  MannequinPreset,
+  StylePresentation,
+  AvatarConfig,
+  avatarConfigSchema,
+  mapToStandardPreset,
+} from "./avatar.types";
 
-type MannequinPreset = (typeof MANNEQUIN_PRESETS)[number];
-export type StylePresentation = "neutral" | "masculine" | "feminine";
+export { MANNEQUIN_PRESETS };
+export type { MannequinPreset, StylePresentation, AvatarConfig };
+
+const presetInputSchema = z.string().transform((val) => {
+  if ((MANNEQUIN_PRESETS as readonly string[]).includes(val)) {
+    return val as MannequinPreset;
+  }
+  return mapToStandardPreset(val);
+});
 
 function describePreset(
   p: MannequinPreset,
@@ -327,16 +331,8 @@ export const updateMannequinPreset = createServerFn({ method: "POST" })
   .inputValidator((input) =>
     z
       .object({
-        preset: z.enum(MANNEQUIN_PRESETS),
-        avatarConfig: z
-          .object({
-            build: z.enum(["slim", "neutral", "curvy"]).optional(),
-            skinToneHex: z.string().optional(),
-            presentation: z.enum(["neutral", "masculine", "feminine"]).optional(),
-            baseWearHex: z.string().optional(),
-            heightScale: z.number().optional(),
-          })
-          .optional(),
+        preset: presetInputSchema,
+        avatarConfig: avatarConfigSchema.optional(),
       })
       .parse(input),
   )
@@ -389,17 +385,9 @@ export const completeOnboarding = createServerFn({ method: "POST" })
     z
       .object({
         displayName: z.string().min(1).max(60).optional(),
-        preset: z.enum(MANNEQUIN_PRESETS),
+        preset: presetInputSchema,
         stylePresentation: z.enum(["neutral", "masculine", "feminine"]).optional(),
-        avatarConfig: z
-          .object({
-            build: z.enum(["slim", "neutral", "curvy"]).optional(),
-            skinToneHex: z.string().optional(),
-            presentation: z.enum(["neutral", "masculine", "feminine"]).optional(),
-            baseWearHex: z.string().optional(),
-            heightScale: z.number().optional(),
-          })
-          .optional(),
+        avatarConfig: avatarConfigSchema.optional(),
       })
       .parse(input),
   )

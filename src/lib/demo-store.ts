@@ -1,3 +1,4 @@
+import { AvatarConfig } from "./avatar.types";
 import type { Database, Json } from "@/integrations/supabase/types";
 
 export type MannequinPresetId = Database["public"]["Enums"]["mannequin_preset"];
@@ -136,12 +137,21 @@ let demoProfile = {
   onboarded_at: null as string | null,
   style_presentation: "neutral" as "neutral" | "masculine" | "feminine",
   avatar_config: {
-    build: "neutral" as "slim" | "neutral" | "curvy",
-    skinToneHex: "#D59D7B",
-    presentation: "neutral" as "neutral" | "masculine" | "feminine",
-    baseWearHex: "#232326",
+    modelType: "/models/female-twin.glb",
+    bodyFrame: "athletic" as const,
+    build: "neutral" as const,
+    heightCm: 165,
     heightScale: 1.0,
-  },
+    skinToneHex: "#D59D7B",
+    baseWearHex: "#232326",
+    shoulderPct: 50,
+    waistPct: 48,
+    hairStyle: "wavy_curtains",
+    hairColorHex: "#18181A",
+    eyewear: "none",
+    stance: "runway_confident" as const,
+    presentation: "feminine" as const,
+  } as AvatarConfig,
 };
 
 export const demoStore = {
@@ -252,13 +262,7 @@ export const demoStore = {
     demoProfile.style_presentation = presentation;
   },
 
-  updateAvatarConfig(config: {
-    build?: "slim" | "neutral" | "curvy";
-    skinToneHex?: string;
-    presentation?: "neutral" | "masculine" | "feminine";
-    baseWearHex?: string;
-    heightScale?: number;
-  }) {
+  updateAvatarConfig(config: Partial<AvatarConfig>) {
     demoProfile.avatar_config = {
       ...demoProfile.avatar_config,
       ...config,
@@ -269,13 +273,7 @@ export const demoStore = {
     displayName?: string;
     preset: string;
     stylePresentation?: "neutral" | "masculine" | "feminine";
-    avatarConfig?: {
-      build?: "slim" | "neutral" | "curvy";
-      skinToneHex?: string;
-      presentation?: "neutral" | "masculine" | "feminine";
-      baseWearHex?: string;
-      heightScale?: number;
-    };
+    avatarConfig?: AvatarConfig;
   }) {
     demoProfile.onboarded_at = new Date().toISOString();
     if (data.displayName) demoProfile.display_name = data.displayName;

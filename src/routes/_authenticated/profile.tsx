@@ -1,3 +1,4 @@
+import { AvatarConfig } from "@/lib/avatar.types";
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -76,13 +77,7 @@ function ProfilePage() {
 
   async function pickPreset(
     p: Preset,
-    avatarConfig?: {
-      build?: "slim" | "neutral" | "curvy";
-      skinToneHex?: string;
-      presentation?: "neutral" | "masculine" | "feminine";
-      baseWearHex?: string;
-      heightScale?: number;
-    }
+    avatarConfig?: AvatarConfig
   ) {
     try {
       await setPresetFn({ data: { preset: p, avatarConfig } });
@@ -178,9 +173,10 @@ function ProfilePage() {
             <AvatarDesignerStudio
               initialPreset={currentPreset}
               initialPresentation={currentPresentation}
+              initialConfig={profileData?.avatarConfig as AvatarConfig | undefined}
               showSaveButton={true}
               onSave={async (cfg) => {
-                await pickPreset(cfg.preset as Preset, cfg);
+                await pickPreset(cfg.preset as Preset, cfg.avatarConfig);
                 await pickPresentation(cfg.presentation as Presentation);
                 toast.success("3D Mannequin saved ✦");
               }}

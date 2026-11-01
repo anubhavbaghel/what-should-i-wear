@@ -9,7 +9,13 @@ import {
   EyewearType,
   CameraFocusTarget,
   FashionStanceType,
+  BodyMorphConfig,
 } from "./ThreeMannequinViewer";
+import {
+  AvatarConfig,
+  BodyFrameType,
+  mapToStandardPreset,
+} from "@/lib/avatar.types";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -22,12 +28,14 @@ import {
   LogOut,
   ArrowRight,
   Glasses,
+  Eye,
 } from "lucide-react";
 
 export type StudioTab = "body" | "face" | "hair" | "outfit";
-export type BodyFrameType = "slim" | "athletic" | "curvy" | "average";
+export type { BodyFrameType };
 
 export interface AvatarDesignerStudioProps {
+  initialConfig?: AvatarConfig;
   initialPreset?: string;
   initialPresentation?: StylePresentationType;
   initialOutfit?: MannequinOutfitConfig;
@@ -51,6 +59,7 @@ export interface AvatarDesignerStudioProps {
     hairColorHex?: string;
     eyewear?: EyewearType;
     outfit?: MannequinOutfitConfig;
+    avatarConfig?: AvatarConfig;
   }) => void;
   onSave?: (config: {
     preset: string;
@@ -63,6 +72,7 @@ export interface AvatarDesignerStudioProps {
     hairColorHex?: string;
     eyewear?: EyewearType;
     outfit?: MannequinOutfitConfig;
+    avatarConfig?: AvatarConfig;
   }) => void;
   className?: string;
   showSaveButton?: boolean;
@@ -88,19 +98,19 @@ export const BODY_FRAMES: {
     id: "slim",
     label: "Slim",
     build: "slim",
-    morphs: { shoulderWidth: 0.92, waistScale: 0.88, hipWidth: 0.9, chestBust: 0.9 },
+    morphs: { shoulderWidth: 0.90, waistScale: 0.88, hipWidth: 0.92, chestBust: 0.90 },
   },
   {
     id: "athletic",
     label: "Athletic",
     build: "neutral",
-    morphs: { shoulderWidth: 1.12, waistScale: 0.95, hipWidth: 0.98, chestBust: 1.08 },
+    morphs: { shoulderWidth: 1.15, waistScale: 0.95, hipWidth: 0.98, chestBust: 1.10 },
   },
   {
     id: "curvy",
     label: "Curvy",
     build: "curvy",
-    morphs: { shoulderWidth: 1.05, waistScale: 1.05, hipWidth: 1.25, chestBust: 1.18 },
+    morphs: { shoulderWidth: 1.02, waistScale: 1.05, hipWidth: 1.20, chestBust: 1.15 },
   },
   {
     id: "average",
@@ -161,10 +171,12 @@ interface StudioHistoryState {
   waistPct: number;
   hairStyle: HairstyleType;
   hairColorHex: string;
+  eyewear: EyewearType;
   stance: FashionStanceType;
 }
 
 export function AvatarDesignerStudio({
+  initialConfig,
   initialPreset = "neutral_medium",
   initialPresentation = "feminine",
   initialOutfit,
@@ -185,50 +197,68 @@ export function AvatarDesignerStudio({
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<StudioTab>("body");
 
+  // Development comparison toggle (A/B testing default vs customized body)
+  const [isComparingDefault, setIsComparingDefault] = useState<boolean>(false);
+
   // Model & Twin Presentation
   const [modelType, setModelType] = useState<ModelPresetType>(() => {
+    if (initialConfig?.modelType) return initialConfig.modelType as ModelPresetType;
     if (initialModelType && (initialModelType.includes("female") || initialModelType.includes("male"))) {
       return initialModelType;
     }
-    return initialPresentation === "masculine" ? "/models/male-twin.glb" : "/models/female-twin.glb";
+    const pres = initialConfig?.presentation || initialPresentation;
+    return pres === "masculine" ? "/models/male-twin.glb" : "/models/female-twin.glb";
   });
 
-  const [presentation, setPresentation] = useState<StylePresentationType>(initialPresentation);
+  const [presentation, setPresentation] = useState<StylePresentationType>(
+    initialConfig?.presentation || initialPresentation
+  );
 
   // Body Frame & Proportions
   const [bodyFrame, setBodyFrame] = useState<BodyFrameType>(() => {
+    if (initialConfig?.bodyFrame) return initialConfig.bodyFrame;
     if (initialPreset?.includes("slim")) return "slim";
     if (initialPreset?.includes("curvy")) return "curvy";
     return "athletic";
   });
 
-  const [heightCm, setHeightCm] = useState<number>(165);
-  const [shoulderPct, setShoulderPct] = useState<number>(50);
-  const [waistPct, setWaistPct] = useState<number>(48);
+  const [heightCm, setHeightCm] = useState<number>(initialConfig?.heightCm ?? 165);
+  const [shoulderPct, setShoulderPct] = useState<number>(initialConfig?.shoulderPct ?? 50);
+  const [waistPct, setWaistPct] = useState<number>(initialConfig?.waistPct ?? 48);
 
   // Skin Tone
   const [skinToneHex, setSkinToneHex] = useState<string>(() => {
+    if (initialConfig?.skinToneHex) return initialConfig.skinToneHex;
     if (initialPreset?.includes("light")) return "#F3D5C0";
     if (initialPreset?.includes("dark")) return "#8F5433";
     return "#D59D7B";
   });
 
   // Hair & Face
-  const [hairStyle, setHairStyle] = useState<HairstyleType>(initialHairStyle);
-  const [hairColorHex, setHairColorHex] = useState<string>(initialHairColorHex);
-  const [eyewear, setEyewear] = useState<EyewearType>(initialEyewear);
-  const [stance, setStance] = useState<FashionStanceType>("runway_confident");
+  const [hairStyle, setHairStyle] = useState<HairstyleType>(
+    (initialConfig?.hairStyle as HairstyleType) || initialHairStyle
+  );
+  const [hairColorHex, setHairColorHex] = useState<string>(
+    initialConfig?.hairColorHex || initialHairColorHex
+  );
+  const [eyewear, setEyewear] = useState<EyewearType>(
+    (initialConfig?.eyewear as EyewearType) || initialEyewear
+  );
+  const [stance, setStance] = useState<FashionStanceType>(
+    initialConfig?.stance || "runway_confident"
+  );
 
   // Outfits
   const [outfit, setOutfit] = useState<MannequinOutfitConfig>(
-    initialOutfit || {
-      topType: "tee",
-      topColor: "#222226",
-      bottomType: "trousers",
-      bottomColor: "#18181A",
-      shoesType: "sneakers",
-      shoesColor: "#6B3A5B",
-    }
+    initialConfig?.outfit ||
+      initialOutfit || {
+        topType: "tee",
+        topColor: "#222226",
+        bottomType: "trousers",
+        bottomColor: "#18181A",
+        shoesType: "sneakers",
+        shoesColor: "#6B3A5B",
+      }
   );
 
   // Camera Focus
@@ -247,6 +277,7 @@ export function AvatarDesignerStudio({
       waistPct,
       hairStyle,
       hairColorHex,
+      eyewear,
       stance,
     };
     historyRef.current.push(current);
@@ -264,28 +295,49 @@ export function AvatarDesignerStudio({
     setWaistPct(prev.waistPct);
     setHairStyle(prev.hairStyle);
     setHairColorHex(prev.hairColorHex);
+    setEyewear(prev.eyewear);
     setStance(prev.stance);
   };
 
   // Convert heightCm to heightScale (170cm = 1.0)
   const heightScale = Math.max(0.88, Math.min(1.12, heightCm / 170));
 
-  // Compute active body morphs
+  // Compute active body morphs based on bodyFrame and fine-tuned sliders
   const currentFrameObj = BODY_FRAMES.find((f) => f.id === bodyFrame) || BODY_FRAMES[1];
-  const shoulderFactor = (shoulderPct / 50); // 1.0 at 50%
-  const waistFactor = (waistPct / 50);
-
-  const activeMorphs = {
-    shoulderWidth: currentFrameObj.morphs.shoulderWidth * shoulderFactor,
-    waistScale: currentFrameObj.morphs.waistScale * waistFactor,
+  const activeMorphs: BodyMorphConfig = {
+    shoulderWidth: currentFrameObj.morphs.shoulderWidth * (1 + (shoulderPct - 50) / 100),
+    waistScale: currentFrameObj.morphs.waistScale * (1 + (waistPct - 50) / 100),
     hipWidth: currentFrameObj.morphs.hipWidth,
-    chestBust: currentFrameObj.morphs.chestBust,
+    chestBust: currentFrameObj.morphs.chestBust * (1 + (shoulderPct - 50) / 150),
   };
+
+  // Build complete AvatarConfig payload
+  const currentConfig: AvatarConfig = {
+    modelType,
+    presentation,
+    bodyFrame,
+    build: currentFrameObj.build,
+    heightCm,
+    heightScale,
+    skinToneHex,
+    baseWearHex: "#18181A",
+    shoulderPct,
+    waistPct,
+    bodyMorphs: activeMorphs,
+    hairStyle,
+    hairColorHex,
+    eyewear,
+    stance,
+    outfit,
+  };
+
+  // Safe preset mapping for database compatibility
+  const standardPreset = mapToStandardPreset(bodyFrame, skinToneHex);
 
   // Emit changes to parent
   useEffect(() => {
     onChange?.({
-      preset: `${bodyFrame}_custom`,
+      preset: standardPreset,
       presentation,
       skinToneHex,
       baseWearHex: "#18181A",
@@ -295,8 +347,21 @@ export function AvatarDesignerStudio({
       hairColorHex,
       eyewear,
       outfit,
+      avatarConfig: currentConfig,
     });
-  }, [bodyFrame, presentation, skinToneHex, heightScale, modelType, hairStyle, hairColorHex, eyewear, outfit]);
+  }, [
+    bodyFrame,
+    presentation,
+    skinToneHex,
+    heightScale,
+    modelType,
+    hairStyle,
+    hairColorHex,
+    eyewear,
+    outfit,
+    shoulderPct,
+    waistPct,
+  ]);
 
   // Restart / Reset action
   const handleRestart = () => {
@@ -311,13 +376,14 @@ export function AvatarDesignerStudio({
     setWaistPct(48);
     setSkinToneHex("#D59D7B");
     setHairStyle("wavy_curtains");
+    setEyewear("none");
     setStance("runway_confident");
   };
 
   // Continue action
   const handleContinue = () => {
-    const config = {
-      preset: `${bodyFrame}_custom`,
+    const payload = {
+      preset: standardPreset,
       presentation,
       skinToneHex,
       baseWearHex: "#18181A",
@@ -327,9 +393,10 @@ export function AvatarDesignerStudio({
       hairColorHex,
       eyewear,
       outfit,
+      avatarConfig: currentConfig,
     };
     if (showSaveButton && onSave) {
-      onSave(config);
+      onSave(payload);
       return;
     }
     if (onContinue) {
@@ -397,6 +464,7 @@ export function AvatarDesignerStudio({
               <ThreeMannequinViewer
                 modelType={modelType}
                 build={currentFrameObj.build}
+                bodyMorphs={isComparingDefault ? undefined : activeMorphs}
                 skinToneHex={skinToneHex}
                 heightScale={heightScale}
                 hairStyle={hairStyle}
@@ -411,6 +479,22 @@ export function AvatarDesignerStudio({
                 showFocusTabs={true}
                 className="w-full h-full"
               />
+
+              {/* Dev A/B Comparison Pill (Bottom Left of 3D Viewport) */}
+              <button
+                type="button"
+                onClick={() => setIsComparingDefault((v) => !v)}
+                className={cn(
+                  "absolute bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-full border border-ink px-3 py-1 text-[10.5px] font-black uppercase tracking-wider shadow-xs backdrop-blur-xs transition-all active:scale-95",
+                  isComparingDefault
+                    ? "bg-[#FFE169] text-ink border-2"
+                    : "bg-white/95 text-ink hover:bg-neutral-100"
+                )}
+                title="Toggle comparison between default base proportions and custom body morphs"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                <span>{isComparingDefault ? "Base Figure" : "Customized"}</span>
+              </button>
             </div>
 
             {/* RIGHT COLUMN: Customization Studio Panel */}
@@ -898,6 +982,7 @@ export function AvatarDesignerStudio({
           <ThreeMannequinViewer
             modelType={modelType}
             build={currentFrameObj.build}
+            bodyMorphs={isComparingDefault ? undefined : activeMorphs}
             skinToneHex={skinToneHex}
             heightScale={heightScale}
             hairStyle={hairStyle}
@@ -912,6 +997,22 @@ export function AvatarDesignerStudio({
             showFocusTabs={false}
             className="w-full h-full"
           />
+
+          {/* Dev A/B Comparison Pill (Bottom Left of Mobile Viewport) */}
+          <button
+            type="button"
+            onClick={() => setIsComparingDefault((v) => !v)}
+            className={cn(
+              "absolute bottom-2 left-2 z-20 flex items-center gap-1 rounded-full border border-ink px-2.5 py-0.5 text-[9.5px] font-black uppercase tracking-wider shadow-xs backdrop-blur-xs transition-all active:scale-95",
+              isComparingDefault
+                ? "bg-[#FFE169] text-ink border-2"
+                : "bg-white/95 text-ink hover:bg-neutral-100"
+            )}
+            title="Toggle comparison"
+          >
+            <Eye className="h-3 w-3" />
+            <span>{isComparingDefault ? "Base" : "Custom"}</span>
+          </button>
         </div>
 
         {/* Mobile Category Tabs */}
@@ -1142,10 +1243,8 @@ function BodySilhouetteIcon({
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      {/* Head */}
       <circle cx="12" cy="5" r="3.2" fill={isSelected ? "#FFE169" : "none"} />
 
-      {/* Torso & Limbs silhouette based on frame */}
       {type === "slim" && (
         <path
           d="M8.5 11c0 3 1.5 5 1.5 9l-1 10M15.5 11c0 3-1.5 5-1.5 9l1 10M8.5 11h7"
