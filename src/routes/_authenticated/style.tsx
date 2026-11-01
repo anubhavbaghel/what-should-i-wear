@@ -82,7 +82,7 @@ function StylePage() {
     eyewear: string;
     stance: string;
   }>({
-    modelType: "michelle",
+    modelType: "procedural",
     hairStyle: "wavy_curtains",
     hairColorHex: "#18181A",
     eyewear: "none",
@@ -95,7 +95,7 @@ function StylePage() {
       if (saved) {
         const parsed = JSON.parse(saved);
         setAvatarConfig({
-          modelType: parsed.modelType || "michelle",
+          modelType: parsed.modelType || "procedural",
           hairStyle: parsed.hairStyle || "wavy_curtains",
           hairColorHex: parsed.hairColorHex || "#18181A",
           eyewear: parsed.eyewear || "none",

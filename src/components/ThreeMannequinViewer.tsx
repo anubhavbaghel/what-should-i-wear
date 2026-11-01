@@ -72,7 +72,7 @@ export interface BodyMorphConfig {
   legFullness?: number;   // 0.85 to 1.25, default 1.0
 }
 
-export type ModelPresetType = "xbot" | "michelle" | "soldier" | "base" | "procedural" | string;
+export type ModelPresetType = "procedural" | string;
 export type CameraFocusTarget = "full" | "face" | "torso" | "legs" | "shoes";
 export type FashionStanceType =
   | "runway_confident"
@@ -99,7 +99,7 @@ export interface ThreeMannequinViewerProps {
 }
 
 export function ThreeMannequinViewer({
-  modelType = "xbot",
+  modelType = "procedural",
   build = "neutral",
   skinToneHex = "#D59D7B",
   hairStyle = "wavy_curtains",
@@ -852,7 +852,7 @@ export function ThreeMannequinViewer({
     };
   }, []);
 
-  // Load external 3D model (Mixamo X-Bot, GLB models) or toggle procedural
+  // Load external 3D model (GLB models) or toggle procedural Stylized Twin
   useEffect(() => {
     const extGroup = externalModelGroupRef.current;
     const manGroup = mannequinGroupRef.current;
@@ -860,7 +860,14 @@ export function ThreeMannequinViewer({
 
     if (!extGroup || !manGroup) return;
 
-    if (modelType === "procedural") {
+    if (
+      modelType === "procedural" ||
+      !modelType ||
+      modelType === "xbot" ||
+      modelType === "michelle" ||
+      modelType === "base" ||
+      modelType === "soldier"
+    ) {
       extGroup.visible = false;
       manGroup.visible = true;
       loadedModelRef.current = null;
@@ -895,24 +902,8 @@ export function ThreeMannequinViewer({
           const mesh = child as THREE.Mesh;
           mesh.castShadow = true;
           mesh.receiveShadow = true;
-          const nameLower = mesh.name.toLowerCase();
-          if (
-            (mesh.name === "Beta_Surface" ||
-              mesh.name === "Ch03" ||
-              nameLower.includes("surface") ||
-              nameLower.includes("body") ||
-              nameLower.includes("skin") ||
-              nameLower === "mesh" ||
-              nameLower === "mesh.001") &&
-            skinMat
-          ) {
+          if (skinMat) {
             mesh.material = skinMat;
-          } else if (mesh.name === "Beta_Joints") {
-            mesh.material = new THREE.MeshStandardMaterial({
-              color: new THREE.Color(0x232428),
-              metalness: 0.85,
-              roughness: 0.25,
-            });
           }
         }
       });
@@ -920,82 +911,28 @@ export function ThreeMannequinViewer({
     }
 
     let isCancelled = false;
-
-    if (modelType === "xbot") {
-      const fbxLoader = new FBXLoader();
-      fbxLoader.load(
-        "/models/x-bot.fbx",
-        (fbx) => {
-          if (isCancelled) return;
-          applyTransformsAndMaterials(fbx);
-          extGroup.clear();
-          extGroup.add(fbx);
-          extGroup.visible = true;
-          manGroup.visible = false;
-          loadedModelRef.current = fbx;
-          setIsLoadingModel(false);
-          applyFashionStance(stance);
-        },
-        undefined,
-        (err) => {
-          console.warn("FBX load failed, falling back to avatar-base.glb:", err);
-          if (isCancelled) return;
-          const gltfLoader = new GLTFLoader();
-          gltfLoader.load(
-            "/models/avatar-base.glb",
-            (gltf) => {
-              if (isCancelled) return;
-              applyTransformsAndMaterials(gltf.scene);
-              extGroup.clear();
-              extGroup.add(gltf.scene);
-              extGroup.visible = true;
-              manGroup.visible = false;
-              loadedModelRef.current = gltf.scene;
-              setIsLoadingModel(false);
-            },
-            undefined,
-            () => {
-              if (isCancelled) return;
-              manGroup.visible = true;
-              setIsLoadingModel(false);
-            }
-          );
-        }
-      );
-    } else {
-      const gltfUrl =
-        modelType === "michelle"
-          ? "/models/michelle.glb"
-          : modelType === "soldier"
-          ? "/models/soldier.glb"
-          : modelType === "base"
-          ? "/models/avatar-base.glb"
-          : modelType;
-
-      const gltfLoader = new GLTFLoader();
-      gltfLoader.load(
-        gltfUrl,
-        (gltf) => {
-          if (isCancelled) return;
-          applyTransformsAndMaterials(gltf.scene);
-          extGroup.clear();
-          extGroup.add(gltf.scene);
-          extGroup.visible = true;
-          manGroup.visible = false;
-          loadedModelRef.current = gltf.scene;
-          setIsLoadingModel(false);
-          // Re-apply active posture to newly loaded armature
-          applyFashionStance(stance);
-        },
-        undefined,
-        (err) => {
-          console.warn(`GLTF load failed for ${gltfUrl}:`, err);
-          if (isCancelled) return;
-          manGroup.visible = true;
-          setIsLoadingModel(false);
-        }
-      );
-    }
+    const gltfLoader = new GLTFLoader();
+    gltfLoader.load(
+      modelType,
+      (gltf) => {
+        if (isCancelled) return;
+        applyTransformsAndMaterials(gltf.scene);
+        extGroup.clear();
+        extGroup.add(gltf.scene);
+        extGroup.visible = true;
+        manGroup.visible = false;
+        loadedModelRef.current = gltf.scene;
+        setIsLoadingModel(false);
+        applyFashionStance(stance);
+      },
+      undefined,
+      (err) => {
+        console.warn(`GLTF load failed for ${modelType}:`, err);
+        if (isCancelled) return;
+        manGroup.visible = true;
+        setIsLoadingModel(false);
+      }
+    );
 
     return () => {
       isCancelled = true;
@@ -1074,24 +1011,11 @@ export function ThreeMannequinViewer({
     const extGroup = externalModelGroupRef.current;
 
     // Position socket based on active model head coordinates
-    if (modelType === "procedural") {
-      if (manGroup && headGroup.parent !== manGroup) {
-        manGroup.add(headGroup);
-      }
-      headGroup.position.set(0, 1.0, 0);
-      headGroup.scale.set(1.0, 1.0, 1.0);
-    } else {
-      if (extGroup && headGroup.parent !== extGroup) {
-        extGroup.add(headGroup);
-      }
-      if (modelType === "michelle") {
-        headGroup.position.set(0, 0.85, -0.05);
-        headGroup.scale.set(0.95, 0.95, 0.95);
-      } else {
-        headGroup.position.set(0, 0.95, 0.0);
-        headGroup.scale.set(1.0, 1.0, 1.0);
-      }
+    if (manGroup && headGroup.parent !== manGroup) {
+      manGroup.add(headGroup);
     }
+    headGroup.position.set(0, 1.0, 0);
+    headGroup.scale.set(1.0, 1.0, 1.0);
 
     headGroup.clear();
 
@@ -1328,17 +1252,7 @@ export function ThreeMannequinViewer({
       {/* Floating Viewport Overlay Badge */}
       <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-1.5 rounded-full border-[1.5px] border-ink bg-card px-2.5 py-1 text-[11px] font-bold shadow-sm">
         <span className="h-2 w-2 rounded-full bg-mint animate-pulse" />
-        <span>
-          {modelType === "xbot"
-            ? "Mixamo X-Bot 3D"
-            : modelType === "michelle"
-            ? "Mixamo Michelle 3D"
-            : modelType === "soldier"
-            ? "Soldier 3D"
-            : modelType === "base"
-            ? "3D Mannequin"
-            : "Sculpted Croquis"}
-        </span>
+        <span>Stylized Digital Twin</span>
       </div>
 
       {/* Loading Overlay */}

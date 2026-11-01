@@ -38,8 +38,7 @@ export type CustomizerCategory =
   | "hair_color"
   | "glasses"
   | "skin"
-  | "figure"
-  | "model";
+  | "figure";
 
 export interface AvatarDesignerStudioProps {
   initialPreset?: string; // e.g. "neutral_medium", "slim_light", "curvy_dark"
@@ -76,38 +75,6 @@ export interface AvatarDesignerStudioProps {
   className?: string;
   showSaveButton?: boolean;
 }
-
-export const MANNEQUIN_MODELS: {
-  id: ModelPresetType;
-  name: string;
-  badge: string;
-  desc: string;
-}[] = [
-  {
-    id: "procedural",
-    name: "Stylized Modular Twin",
-    badge: "✦ Full Wardrobe Ready",
-    desc: "Personal styling mannequin with modular swappable garments & hair",
-  },
-  {
-    id: "michelle",
-    name: "Female Runway Twin",
-    badge: "Stylized GLB",
-    desc: "Sleek female runway model with customizable hair & skin tones",
-  },
-  {
-    id: "base",
-    name: "Male Athletic Twin",
-    badge: "Stylized GLB",
-    desc: "Athletic male humanoid with customizable hair & skin tones",
-  },
-  {
-    id: "xbot",
-    name: "Mixamo X-Bot",
-    badge: "3D Joint Robot",
-    desc: "Editorial humanoid mannequin with joint accents",
-  },
-];
 
 export const HAIRSTYLES: { id: HairstyleType; label: string; desc: string }[] = [
   { id: "wavy_curtains", label: "Wavy Curtains", desc: "90s / Gen-Z relaxed parted flow" },
@@ -555,7 +522,6 @@ export function AvatarDesignerStudio({
           { id: "glasses", label: "Glasses", icon: Glasses },
           { id: "skin", label: "Complexion", icon: Wand2 },
           { id: "figure", label: "Figure", icon: User },
-          { id: "model", label: "3D Model", icon: Box },
         ].map((cat) => {
           const Icon = cat.icon;
           const active = activeCategory === cat.id;
@@ -1155,41 +1121,6 @@ export function AvatarDesignerStudio({
                   );
                 })}
               </div>
-            </div>
-          </div>
-        )}
-
-        {/* 10. 3D BASE MODEL */}
-        {activeCategory === "model" && (
-          <div className="space-y-3 animate-in fade-in-50 duration-200">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-              3D Engine & Avatar Base Mesh
-            </span>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {MANNEQUIN_MODELS.map((m) => {
-                const active = modelType === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setModelType(m.id)}
-                    className={cn(
-                      "card-pop p-3 text-left transition-all active:scale-95 cursor-pointer",
-                      active
-                        ? "border-ink bg-sun shadow-[2px_2px_0px_#1B1B1D]"
-                        : "border-ink/20 bg-card hover:bg-muted/40"
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-foreground">{m.name}</span>
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground bg-ink/5 px-2 py-0.5 rounded-full">
-                        {m.badge}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[11px] text-muted-foreground leading-snug">{m.desc}</p>
-                  </button>
-                );
-              })}
             </div>
           </div>
         )}
