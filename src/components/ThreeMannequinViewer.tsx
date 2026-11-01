@@ -128,6 +128,17 @@ export function ThreeMannequinViewer({
   const externalModelGroupRef = useRef<THREE.Group | null>(null);
   const loadedModelRef = useRef<THREE.Object3D | null>(null);
   const modelBonesRef = useRef<Record<string, THREE.Bone>>({});
+  const modularMeshesRef = useRef<{
+    head?: THREE.SkinnedMesh;
+    body?: THREE.SkinnedMesh;
+    hair?: THREE.SkinnedMesh;
+    top?: THREE.SkinnedMesh;
+    bottom?: THREE.SkinnedMesh;
+    footwear?: THREE.SkinnedMesh;
+    glasses?: THREE.SkinnedMesh;
+    teeth?: THREE.SkinnedMesh;
+    eyes: THREE.SkinnedMesh[];
+  }>({ eyes: [] });
   const headAccessoriesGroupRef = useRef<THREE.Group | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
@@ -732,6 +743,45 @@ export function ThreeMannequinViewer({
         externalModelGroupRef.current.rotation.x = rot.pitch;
       }
 
+      // 8b. Natural idle ARKit blinking & expression cycle (Bitmoji Vitality Engine)
+      const nowSec = now / 1000;
+      const blinkPeriod = 3.8;
+      const blinkDuration = 0.16;
+      const cycleTime = nowSec % blinkPeriod;
+      let blinkVal = 0;
+      if (cycleTime < blinkDuration) {
+        blinkVal = Math.sin((cycleTime / blinkDuration) * Math.PI);
+      }
+
+      // Subtle natural breathing cycle on spine
+      const breathOffset = Math.sin(nowSec * 2.0) * 0.012;
+      const activeBones = modelBonesRef.current;
+      if (activeBones.spine1) {
+        activeBones.spine1.rotation.x = breathOffset;
+      }
+
+      const modMeshes = modularMeshesRef.current;
+      if (modMeshes.head && modMeshes.head.morphTargetDictionary && modMeshes.head.morphTargetInfluences) {
+        const dict = modMeshes.head.morphTargetDictionary;
+        const inf = modMeshes.head.morphTargetInfluences;
+        if (dict.eyeBlinkLeft !== undefined) inf[dict.eyeBlinkLeft] = blinkVal;
+        if (dict.eyeBlinkRight !== undefined) inf[dict.eyeBlinkRight] = blinkVal;
+        if (dict.mouthSmileLeft !== undefined) inf[dict.mouthSmileLeft] = 0.16;
+        if (dict.mouthSmileRight !== undefined) inf[dict.mouthSmileRight] = 0.16;
+        if (dict.mouthSmile !== undefined) inf[dict.mouthSmile] = 0.18;
+      }
+
+      if (modMeshes.eyes && modMeshes.eyes.length > 0) {
+        modMeshes.eyes.forEach((eye) => {
+          if (eye.morphTargetDictionary && eye.morphTargetInfluences) {
+            const dict = eye.morphTargetDictionary;
+            const inf = eye.morphTargetInfluences;
+            if (dict.eyeBlinkLeft !== undefined) inf[dict.eyeBlinkLeft] = blinkVal;
+            if (dict.eyeBlinkRight !== undefined) inf[dict.eyeBlinkRight] = blinkVal;
+          }
+        });
+      }
+
       renderer.render(scene, camera);
     };
     animate();
@@ -852,25 +902,103 @@ export function ThreeMannequinViewer({
     };
   }, []);
 
-  // Load external 3D model (GLB models) or toggle procedural Stylized Twin
+  // Update modular stylized twin materials & garments
+  const updateModularTwin = () => {
+    const modMeshes = modularMeshesRef.current;
+    if (!modMeshes.head && !modMeshes.body) return;
+
+    // 1. Skin tone
+    if (modMeshes.head?.material) {
+      const mat = (Array.isArray(modMeshes.head.material) ? modMeshes.head.material[0] : modMeshes.head.material) as THREE.MeshStandardMaterial;
+      if (mat && mat.color) mat.color.set(skinToneHex);
+    }
+    if (modMeshes.body?.material) {
+      const mat = (Array.isArray(modMeshes.body.material) ? modMeshes.body.material[0] : modMeshes.body.material) as THREE.MeshStandardMaterial;
+      if (mat && mat.color) mat.color.set(skinToneHex);
+    }
+
+    // 2. Hair
+    if (modMeshes.hair) {
+      modMeshes.hair.visible = hairStyle !== "none";
+      if (modMeshes.hair.material) {
+        const mat = (Array.isArray(modMeshes.hair.material) ? modMeshes.hair.material[0] : modMeshes.hair.material) as THREE.MeshStandardMaterial;
+        if (mat && mat.color) mat.color.set(hairColorHex);
+      }
+    }
+
+    // 3. Eyewear
+    if (modMeshes.glasses) {
+      modMeshes.glasses.visible = eyewear !== "none";
+    }
+
+    // 4. Tops
+    if (modMeshes.top) {
+      const isTopVisible = outfit?.topType !== "none";
+      modMeshes.top.visible = isTopVisible;
+      if (isTopVisible && outfit?.topColor && modMeshes.top.material) {
+        const mat = (Array.isArray(modMeshes.top.material) ? modMeshes.top.material[0] : modMeshes.top.material) as THREE.MeshStandardMaterial;
+        if (mat && mat.color) mat.color.set(outfit.topColor);
+      }
+    }
+
+    // 5. Bottoms
+    if (modMeshes.bottom) {
+      const isBottomVisible = outfit?.bottomType !== "none";
+      modMeshes.bottom.visible = isBottomVisible;
+      if (isBottomVisible && outfit?.bottomColor && modMeshes.bottom.material) {
+        const mat = (Array.isArray(modMeshes.bottom.material) ? modMeshes.bottom.material[0] : modMeshes.bottom.material) as THREE.MeshStandardMaterial;
+        if (mat && mat.color) mat.color.set(outfit.bottomColor);
+      }
+    }
+
+    // 6. Footwear
+    if (modMeshes.footwear) {
+      const isShoesVisible = outfit?.shoesType !== "none";
+      modMeshes.footwear.visible = isShoesVisible;
+      if (isShoesVisible && outfit?.shoesColor && modMeshes.footwear.material) {
+        const mat = (Array.isArray(modMeshes.footwear.material) ? modMeshes.footwear.material[0] : modMeshes.footwear.material) as THREE.MeshStandardMaterial;
+        if (mat && mat.color) mat.color.set(outfit.shoesColor);
+      }
+    }
+  };
+
+  // Load external 3D model (Bitmoji-grade GLB models) or toggle procedural Stylized Twin
   useEffect(() => {
     const extGroup = externalModelGroupRef.current;
     const manGroup = mannequinGroupRef.current;
-    const skinMat = skinMaterialRef.current;
 
     if (!extGroup || !manGroup) return;
 
-    if (
-      modelType === "procedural" ||
-      !modelType ||
-      modelType === "xbot" ||
+    // Resolve effective model URL
+    let effectiveUrl: string | null = null;
+    if (modelType === "procedural") {
+      effectiveUrl = null;
+    } else if (
+      modelType === "female" ||
+      modelType === "/models/female-twin.glb" ||
       modelType === "michelle" ||
-      modelType === "base" ||
-      modelType === "soldier"
+      modelType === "base"
     ) {
+      effectiveUrl = "/models/female-twin.glb";
+    } else if (
+      modelType === "male" ||
+      modelType === "/models/male-twin.glb" ||
+      modelType === "soldier" ||
+      modelType === "xbot"
+    ) {
+      effectiveUrl = "/models/male-twin.glb";
+    } else if (typeof modelType === "string" && modelType.startsWith("/")) {
+      effectiveUrl = modelType;
+    } else {
+      // Default: Choose Bitmoji-grade stylized twin based on presentation
+      effectiveUrl = presentation === "masculine" ? "/models/male-twin.glb" : "/models/female-twin.glb";
+    }
+
+    if (!effectiveUrl) {
       extGroup.visible = false;
       manGroup.visible = true;
       loadedModelRef.current = null;
+      modularMeshesRef.current = { eyes: [] };
       setIsLoadingModel(false);
       return;
     }
@@ -892,28 +1020,58 @@ export function ThreeMannequinViewer({
         obj.position.x = 0;
         obj.position.z = 0;
       }
+
       const boneMap: Record<string, THREE.Bone> = {};
+      const meshes: {
+        head?: THREE.SkinnedMesh;
+        body?: THREE.SkinnedMesh;
+        hair?: THREE.SkinnedMesh;
+        top?: THREE.SkinnedMesh;
+        bottom?: THREE.SkinnedMesh;
+        footwear?: THREE.SkinnedMesh;
+        glasses?: THREE.SkinnedMesh;
+        teeth?: THREE.SkinnedMesh;
+        eyes: THREE.SkinnedMesh[];
+      } = { eyes: [] };
+
       obj.traverse((child) => {
         if ((child as THREE.Bone).isBone) {
           const raw = child.name.replace("mixamorig:", "").replace("mixamorig", "").replace("_", "").toLowerCase();
           boneMap[raw] = child as THREE.Bone;
         }
         if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
+          const mesh = child as THREE.SkinnedMesh;
           mesh.castShadow = true;
           mesh.receiveShadow = true;
-          if (skinMat) {
-            mesh.material = skinMat;
+
+          // Clone materials so tinting doesn't bleed across models
+          if (Array.isArray(mesh.material)) {
+            mesh.material = mesh.material.map((m) => m.clone());
+          } else if (mesh.material) {
+            mesh.material = mesh.material.clone();
           }
+
+          const name = mesh.name;
+          if (name === "Wolf3D_Head") meshes.head = mesh;
+          else if (name === "Wolf3D_Body") meshes.body = mesh;
+          else if (name === "Wolf3D_Hair") meshes.hair = mesh;
+          else if (name === "Wolf3D_Outfit_Top") meshes.top = mesh;
+          else if (name === "Wolf3D_Outfit_Bottom") meshes.bottom = mesh;
+          else if (name === "Wolf3D_Outfit_Footwear") meshes.footwear = mesh;
+          else if (name === "Wolf3D_Glasses") meshes.glasses = mesh;
+          else if (name === "Wolf3D_Teeth") meshes.teeth = mesh;
+          else if (name === "EyeLeft" || name === "EyeRight") meshes.eyes.push(mesh);
         }
       });
+
       modelBonesRef.current = boneMap;
+      modularMeshesRef.current = meshes;
     }
 
     let isCancelled = false;
     const gltfLoader = new GLTFLoader();
     gltfLoader.load(
-      modelType,
+      effectiveUrl,
       (gltf) => {
         if (isCancelled) return;
         applyTransformsAndMaterials(gltf.scene);
@@ -924,10 +1082,11 @@ export function ThreeMannequinViewer({
         loadedModelRef.current = gltf.scene;
         setIsLoadingModel(false);
         applyFashionStance(stance);
+        updateModularTwin();
       },
       undefined,
       (err) => {
-        console.warn(`GLTF load failed for ${modelType}:`, err);
+        console.warn(`GLTF load failed for ${effectiveUrl}:`, err);
         if (isCancelled) return;
         manGroup.visible = true;
         setIsLoadingModel(false);
@@ -937,7 +1096,7 @@ export function ThreeMannequinViewer({
     return () => {
       isCancelled = true;
     };
-  }, [modelType]);
+  }, [modelType, presentation]);
 
   // Apply fashion model stances & postures (Snapchat/Mixamo pose library)
   function applyFashionStance(activeStance: FashionStanceType) {
@@ -1051,28 +1210,8 @@ export function ThreeMannequinViewer({
     skinMaterialRef.current.color.set(skinToneHex);
     baseWearMaterialRef.current.color.set(baseWearHex);
 
-    // Update external model skin tone if active (Michelle, Avatar-Base, X-Bot)
-    if (loadedModelRef.current) {
-      loadedModelRef.current.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          const nameLower = mesh.name.toLowerCase();
-          if (
-            mesh.name === "Beta_Surface" ||
-            mesh.name === "Ch03" ||
-            nameLower.includes("surface") ||
-            nameLower.includes("body") ||
-            nameLower.includes("skin") ||
-            nameLower === "mesh" ||
-            nameLower === "mesh.001"
-          ) {
-            if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).color) {
-              (mesh.material as THREE.MeshStandardMaterial).color.set(skinToneHex);
-            }
-          }
-        }
-      });
-    }
+    // Update Bitmoji modular stylized twin
+    updateModularTwin();
 
     if (topMaterialRef.current && outfit?.topColor) {
       topMaterialRef.current.color.set(outfit.topColor);
@@ -1208,7 +1347,13 @@ export function ThreeMannequinViewer({
     if (mannequinGroupRef.current) {
       mannequinGroupRef.current.scale.set(1.0, heightScale, 1.0);
     }
-  }, [build, skinToneHex, presentation, baseWearHex, heightScale, outfit, bodyMorphs]);
+    if (externalModelGroupRef.current) {
+      externalModelGroupRef.current.scale.set(1.0, heightScale, 1.0);
+    }
+
+    // Refresh modular twin
+    updateModularTwin();
+  }, [build, skinToneHex, presentation, baseWearHex, heightScale, outfit, bodyMorphs, hairStyle, hairColorHex, eyewear]);
 
   function resetView() {
     rotationRef.current.targetY = 0;

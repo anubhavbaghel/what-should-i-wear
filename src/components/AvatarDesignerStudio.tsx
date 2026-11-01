@@ -231,11 +231,32 @@ export const FASHION_STANCES: { id: FashionStanceType; label: string; badge: str
   { id: "neutral_pose", label: "Natural Rest", badge: "Clean", desc: "Neutral symmetrical A-pose for wardrobe inspection" },
 ];
 
+export const AVATAR_TWIN_MODELS = [
+  {
+    id: "/models/female-twin.glb",
+    label: "Stylized Female Twin",
+    badge: "✦ Bitmoji Base",
+    desc: "Modular Bitmoji-grade female avatar with 52 FACS expressions & separate garments",
+  },
+  {
+    id: "/models/male-twin.glb",
+    label: "Stylized Male Twin",
+    badge: "✦ Bitmoji Base",
+    desc: "Modular Bitmoji-grade male avatar with 52 FACS expressions & separate garments",
+  },
+  {
+    id: "procedural",
+    label: "Atelier Mannequin",
+    badge: "Mannequin",
+    desc: "Minimalist geometric runway croquis for schematic fitting & silhouette review",
+  },
+];
+
 export function AvatarDesignerStudio({
   initialPreset = "neutral_medium",
   initialPresentation = "neutral",
   initialOutfit,
-  initialModelType = "procedural",
+  initialModelType = "/models/female-twin.glb",
   initialHairStyle = "wavy_curtains",
   initialHairColorHex = "#18181A",
   initialEyewear = "none",
@@ -298,7 +319,15 @@ export function AvatarDesignerStudio({
       const saved = localStorage.getItem("atelier_avatar_config");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.modelType) setModelType(parsed.modelType);
+        if (parsed.modelType) {
+          if (parsed.modelType === "michelle" || parsed.modelType === "base") {
+            setModelType("/models/female-twin.glb");
+          } else if (parsed.modelType === "soldier" || parsed.modelType === "xbot") {
+            setModelType("/models/male-twin.glb");
+          } else {
+            setModelType(parsed.modelType);
+          }
+        }
         if (parsed.hairStyle) setHairStyle(parsed.hairStyle);
         if (parsed.hairColorHex) setHairColorHex(parsed.hairColorHex);
         if (parsed.eyewear) setEyewear(parsed.eyewear);
@@ -383,7 +412,6 @@ export function AvatarDesignerStudio({
         break;
       case "outfits":
       case "figure":
-      case "model":
       default:
         setCameraFocus("full");
         break;
@@ -1015,6 +1043,44 @@ export function AvatarDesignerStudio({
         {/* 9. FIGURE & BUILD */}
         {activeCategory === "figure" && (
           <div className="space-y-4 animate-in fade-in-50 duration-200">
+            {/* Base Avatar Model */}
+            <div>
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                3D Avatar Base Twin
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {AVATAR_TWIN_MODELS.map((m) => {
+                  const active =
+                    modelType === m.id ||
+                    (m.id === "/models/female-twin.glb" && (!modelType || modelType === "female")) ||
+                    (m.id === "/models/male-twin.glb" && modelType === "male");
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setModelType(m.id)}
+                      className={cn(
+                        "card-pop p-2.5 text-left transition-all active:scale-95 cursor-pointer",
+                        active
+                          ? "border-ink bg-sun shadow-[2px_2px_0px_#1B1B1D]"
+                          : "border-ink/20 bg-card hover:bg-muted/40"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-foreground">{m.label}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground bg-ink/5 px-2 py-0.5 rounded-full">
+                          {m.badge}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[10px] text-muted-foreground leading-tight">
+                        {m.desc}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Style Vibe */}
             <div>
               <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
@@ -1025,7 +1091,14 @@ export function AvatarDesignerStudio({
                   <button
                     key={pr.id}
                     type="button"
-                    onClick={() => setPresentation(pr.id)}
+                    onClick={() => {
+                      setPresentation(pr.id);
+                      if (pr.id === "masculine" && modelType === "/models/female-twin.glb") {
+                        setModelType("/models/male-twin.glb");
+                      } else if (pr.id === "feminine" && modelType === "/models/male-twin.glb") {
+                        setModelType("/models/female-twin.glb");
+                      }
+                    }}
                     className="chip text-[12px]"
                     data-active={presentation === pr.id}
                   >

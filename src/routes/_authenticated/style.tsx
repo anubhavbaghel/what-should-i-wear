@@ -184,11 +184,11 @@ function StylePage() {
 
     return {
       topType,
-      topColor: outer?.primary_color || top?.primary_color || "#1B1B1D",
+      topColor: outer?.color || top?.color || "#1B1B1D",
       bottomType,
-      bottomColor: bottom?.primary_color || "#1E1E22",
+      bottomColor: bottom?.color || "#1E1E22",
       shoesType,
-      shoesColor: shoes?.primary_color || "#FFFFFF",
+      shoesColor: shoes?.color || "#FFFFFF",
     };
   }, [selectedItems]);
 
@@ -245,7 +245,7 @@ function StylePage() {
                 viewMode === "3d" ? "bg-sun text-ink border border-ink shadow-xs" : "text-muted-foreground hover:text-ink"
               )}
             >
-              ✦ 3D Mixamo
+              ✦ 3D Avatar
             </button>
             <button
               type="button"
@@ -280,7 +280,7 @@ function StylePage() {
           </div>
         </div>
 
-        {/* Viewport: 3D Mixamo Model vs 2D Schematic */}
+        {/* Viewport: 3D Stylized Twin vs 2D Schematic */}
         {viewMode === "3d" ? (
           <div className="w-full">
             <ThreeMannequinViewer
