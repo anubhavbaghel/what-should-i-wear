@@ -234,21 +234,15 @@ export const FASHION_STANCES: { id: FashionStanceType; label: string; badge: str
 export const AVATAR_TWIN_MODELS = [
   {
     id: "/models/female-twin.glb",
-    label: "Stylized Female Twin",
-    badge: "✦ Bitmoji Base",
-    desc: "Modular Bitmoji-grade female avatar with 52 FACS expressions & separate garments",
+    label: "Female Stylized Twin",
+    badge: "✦ Womenswear",
+    desc: "Modular stylized female avatar with 52 FACS expressions & separate garments",
   },
   {
     id: "/models/male-twin.glb",
-    label: "Stylized Male Twin",
-    badge: "✦ Bitmoji Base",
-    desc: "Modular Bitmoji-grade male avatar with 52 FACS expressions & separate garments",
-  },
-  {
-    id: "procedural",
-    label: "Atelier Mannequin",
-    badge: "Mannequin",
-    desc: "Minimalist geometric runway croquis for schematic fitting & silhouette review",
+    label: "Male Stylized Twin",
+    badge: "✦ Menswear",
+    desc: "Modular stylized male avatar with 52 FACS expressions & separate garments",
   },
 ];
 
@@ -320,8 +314,8 @@ export function AvatarDesignerStudio({
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.modelType) {
-          if (parsed.modelType === "michelle" || parsed.modelType === "base") {
-            setModelType("/models/female-twin.glb");
+          if (parsed.modelType === "michelle" || parsed.modelType === "base" || parsed.modelType === "procedural") {
+            setModelType(parsed.presentation === "masculine" ? "/models/male-twin.glb" : "/models/female-twin.glb");
           } else if (parsed.modelType === "soldier" || parsed.modelType === "xbot") {
             setModelType("/models/male-twin.glb");
           } else {
@@ -1048,7 +1042,7 @@ export function AvatarDesignerStudio({
               <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
                 3D Avatar Base Twin
               </span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2.5">
                 {AVATAR_TWIN_MODELS.map((m) => {
                   const active =
                     modelType === m.id ||

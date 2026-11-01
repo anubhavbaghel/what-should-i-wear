@@ -1,52 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { RotateCw, RefreshCw, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
-import { FBXLoader } from "three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { cn } from "@/lib/utils";
-import {
-  HairstyleType,
-  EyewearType,
-  createFadeHairGeometry,
-  createWavyCurtainsHair,
-  createSleekBobHair,
-  createHighPonytailHair,
-  createAfroCurlsHair,
-  createChicBeanie,
-  createDesignerSunglasses,
-  createHairMaterial,
-} from "./HairstyleGeometries";
+import type { HairstyleType, EyewearType } from "./HairstyleGeometries";
 export type { HairstyleType, EyewearType };
-import {
-  createSculptedHeadGeometry,
-  createNeckGeometry,
-  createTorsoGeometry,
-  createPelvisGeometry,
-  createThighGeometry,
-  createCalfGeometry,
-  createUpperArmGeometry,
-  createForearmGeometry,
-  createFootGeometry,
-  createHandGeometry,
-  createJointGeometry,
-} from "./MannequinGeometries";
-import {
-  createTeeTorsoGeometry,
-  createShortSleeveGeometry,
-  createShirtTorsoGeometry,
-  createLongSleeveUpperGeometry,
-  createLongSleeveForearmGeometry,
-  createJacketTorsoGeometry,
-  createPantsPelvisGeometry,
-  createStraightPantsThighGeometry,
-  createStraightPantsCalfGeometry,
-  createWidePantsThighGeometry,
-  createWidePantsCalfGeometry,
-  createShortsThighGeometry,
-  createSneakerGeometry,
-  createSneakerSoleGeometry,
-  createLoaferGeometry,
-} from "./GarmentGeometries";
 
 export type BuildType = "slim" | "neutral" | "curvy";
 export type StylePresentationType = "neutral" | "masculine" | "feminine";
@@ -72,7 +30,7 @@ export interface BodyMorphConfig {
   legFullness?: number;   // 0.85 to 1.25, default 1.0
 }
 
-export type ModelPresetType = "procedural" | string;
+export type ModelPresetType = "/models/female-twin.glb" | "/models/male-twin.glb" | "female" | "male" | string;
 export type CameraFocusTarget = "full" | "face" | "torso" | "legs" | "shoes";
 export type FashionStanceType =
   | "runway_confident"
@@ -99,7 +57,7 @@ export interface ThreeMannequinViewerProps {
 }
 
 export function ThreeMannequinViewer({
-  modelType = "procedural",
+  modelType = "/models/female-twin.glb",
   build = "neutral",
   skinToneHex = "#D59D7B",
   hairStyle = "wavy_curtains",
@@ -124,9 +82,9 @@ export function ThreeMannequinViewer({
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
-  const mannequinGroupRef = useRef<THREE.Group | null>(null);
   const externalModelGroupRef = useRef<THREE.Group | null>(null);
   const loadedModelRef = useRef<THREE.Object3D | null>(null);
+  const isFemaleModelRef = useRef<boolean>(true);
   const modelBonesRef = useRef<Record<string, THREE.Bone>>({});
   const initialBoneQuatsRef = useRef<Record<string, THREE.Quaternion>>({});
   const modularMeshesRef = useRef<{
@@ -140,58 +98,7 @@ export function ThreeMannequinViewer({
     teeth?: THREE.SkinnedMesh;
     eyes: THREE.SkinnedMesh[];
   }>({ eyes: [] });
-  const headAccessoriesGroupRef = useRef<THREE.Group | null>(null);
   const animFrameRef = useRef<number | null>(null);
-
-  // Material refs for dynamic updates
-  const skinMaterialRef = useRef<THREE.MeshPhysicalMaterial | null>(null);
-  const baseWearMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
-
-  // Part refs for morphing proportions
-  const torsoRef = useRef<THREE.Mesh | null>(null);
-  const chestBaseRef = useRef<THREE.Mesh | null>(null);
-  const hipsRef = useRef<THREE.Mesh | null>(null);
-  const hipsBaseRef = useRef<THREE.Mesh | null>(null);
-  const leftLegRef = useRef<THREE.Group | null>(null);
-  const rightLegRef = useRef<THREE.Group | null>(null);
-  const leftArmRef = useRef<THREE.Group | null>(null);
-  const rightArmRef = useRef<THREE.Group | null>(null);
-
-  // Garment Material refs
-  const topMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
-  const bottomMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
-  const shoesMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
-  const shoesSoleMaterialRef = useRef<THREE.MeshStandardMaterial | null>(null);
-
-  // Garment Mesh refs
-  const teeTorsoRef = useRef<THREE.Mesh | null>(null);
-  const shirtTorsoRef = useRef<THREE.Mesh | null>(null);
-  const jacketTorsoRef = useRef<THREE.Mesh | null>(null);
-  const leftShortSleeveRef = useRef<THREE.Mesh | null>(null);
-  const rightShortSleeveRef = useRef<THREE.Mesh | null>(null);
-  const leftLongUpperRef = useRef<THREE.Mesh | null>(null);
-  const rightLongUpperRef = useRef<THREE.Mesh | null>(null);
-  const leftLongForeRef = useRef<THREE.Mesh | null>(null);
-  const rightLongForeRef = useRef<THREE.Mesh | null>(null);
-
-  const pantsPelvisRef = useRef<THREE.Mesh | null>(null);
-  const leftStraightThighRef = useRef<THREE.Mesh | null>(null);
-  const rightStraightThighRef = useRef<THREE.Mesh | null>(null);
-  const leftStraightCalfRef = useRef<THREE.Mesh | null>(null);
-  const rightStraightCalfRef = useRef<THREE.Mesh | null>(null);
-  const leftWideThighRef = useRef<THREE.Mesh | null>(null);
-  const rightWideThighRef = useRef<THREE.Mesh | null>(null);
-  const leftWideCalfRef = useRef<THREE.Mesh | null>(null);
-  const rightWideCalfRef = useRef<THREE.Mesh | null>(null);
-  const leftShortsThighRef = useRef<THREE.Mesh | null>(null);
-  const rightShortsThighRef = useRef<THREE.Mesh | null>(null);
-
-  const leftFootBareRef = useRef<THREE.Mesh | null>(null);
-  const rightFootBareRef = useRef<THREE.Mesh | null>(null);
-  const leftSneakerRef = useRef<THREE.Group | null>(null);
-  const rightSneakerRef = useRef<THREE.Group | null>(null);
-  const leftLoaferRef = useRef<THREE.Mesh | null>(null);
-  const rightLoaferRef = useRef<THREE.Mesh | null>(null);
 
   // Orbit, Camera Target & Zoom state (Snapchat dynamic auto-framing)
   const rotationRef = useRef({ y: 0, targetY: 0, pitch: 0.1, targetPitch: 0.1 });
@@ -207,7 +114,6 @@ export function ThreeMannequinViewer({
     distance: 4.0,
     targetDistance: 4.0,
   });
-  const [zoomLevel, setZoomLevel] = useState(1.0); // 1.0 is default
   const isPointerDownRef = useRef(false);
   const pointerStartRef = useRef({ x: 0, y: 0 });
   const pinchStartDistRef = useRef<number | null>(null);
@@ -218,19 +124,19 @@ export function ThreeMannequinViewer({
     switch (cameraFocus) {
       case "face":
         target.targetY = 0.85;
-        target.targetDistance = 2.05;
+        target.targetDistance = 2.4;
         break;
       case "torso":
-        target.targetY = 0.25;
-        target.targetDistance = 2.75;
+        target.targetY = 0.35;
+        target.targetDistance = 3.2;
         break;
       case "legs":
         target.targetY = -0.35;
-        target.targetDistance = 3.0;
+        target.targetDistance = 3.2;
         break;
       case "shoes":
         target.targetY = -0.92;
-        target.targetDistance = 2.15;
+        target.targetDistance = 2.5;
         break;
       case "full":
       default:
@@ -240,6 +146,7 @@ export function ThreeMannequinViewer({
     }
   }, [cameraFocus]);
 
+  // 3D Scene Initialization
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -248,85 +155,106 @@ export function ThreeMannequinViewer({
     const scene = new THREE.Scene();
     sceneRef.current = scene;
 
-    const width = container.clientWidth || 300;
-    const height = container.clientHeight || 420;
+    // Soft warm studio gradient background
+    scene.background = new THREE.Color("#FAF8F5");
 
-    // 2. Camera setup - centered on body midpoint (Y = 0.0, mannequin spans from -1.1 to +1.25)
-    const camera = new THREE.PerspectiveCamera(34, width / height, 0.1, 50);
-    camera.position.set(0, 0.05, 4.0);
-    camera.lookAt(0, 0.05, 0);
+    // 2. Camera setup
+    const width = container.clientWidth || 400;
+    const height = container.clientHeight || 500;
+    const camera = new THREE.PerspectiveCamera(36, width / height, 0.1, 50);
+    camera.position.set(0, 0.2, 4.0);
     cameraRef.current = camera;
 
     // 3. Renderer setup
-    const renderer = new THREE.WebGLRenderer({
-      antialias: true,
-      alpha: true,
-      powerPreference: "high-performance",
-    });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
     renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     rendererRef.current = renderer;
+
+    // Empty container before appending
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
     container.appendChild(renderer.domElement);
 
-    // 4. Studio Lighting - Snapchat / High-Fashion 3-Point Setup with Rim Backlight
-    const ambientLight = new THREE.AmbientLight(0xfff7f0, 0.8);
+    // 4. Lighting Rig - High-End Runway Fashion Studio
+    const ambientLight = new THREE.AmbientLight(0xfffbf5, 0.95);
     scene.add(ambientLight);
 
-    // Key Light: Warm directional light (front-left, 45 degrees up)
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.45);
-    keyLight.position.set(2.8, 4.2, 3.6);
+    // Key Light (warm, soft shadows from top front-right)
+    const keyLight = new THREE.DirectionalLight(0xfff8ee, 1.45);
+    keyLight.position.set(2.2, 3.8, 3.2);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 1024;
     keyLight.shadow.mapSize.height = 1024;
     keyLight.shadow.camera.near = 0.5;
-    keyLight.shadow.camera.far = 10;
-    keyLight.shadow.bias = -0.0008;
+    keyLight.shadow.camera.far = 12;
+    keyLight.shadow.bias = -0.0005;
     scene.add(keyLight);
 
-    // Fill Light: Soft cool light to illuminate shadow side
-    const fillLight = new THREE.DirectionalLight(0xe4edff, 0.7);
-    fillLight.position.set(-3.2, 2.4, 2.5);
+    // Fill Light (cool, gentle fill from left)
+    const fillLight = new THREE.DirectionalLight(0xe8f0fe, 0.7);
+    fillLight.position.set(-3.0, 1.8, 2.0);
     scene.add(fillLight);
 
-    // Rim / Kick Light: High-angle back-light for sharp silhouette definition (Snapchat signature)
-    const rimLight = new THREE.DirectionalLight(0xffedd5, 1.6);
-    rimLight.position.set(0, 3.8, -3.6);
+    // Rim / Back Light (crisp silhouette separation from behind)
+    const rimLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    rimLight.position.set(0, 3.0, -3.0);
     scene.add(rimLight);
 
-    // 5. Studio Pedestal / Turntable Platform & Contact Shadow
+    // Subtle Ground Bounce
+    const hemiLight = new THREE.HemisphereLight(0xfff5eb, 0x3d3834, 0.45);
+    scene.add(hemiLight);
+
+    // 5. Stylized Runway Circular Pedestal
     const pedestalGroup = new THREE.Group();
-    const pedestalGeo = new THREE.CylinderGeometry(1.2, 1.28, 0.08, 48);
-    const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0xedebe6,
-      roughness: 0.38,
+
+    // Floor contact shadow disc
+    const contactDiscGeo = new THREE.CircleGeometry(1.22, 64);
+    const contactDiscMat = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+      transparent: true,
+      opacity: 0.16,
+    });
+    const contactDisc = new THREE.Mesh(contactDiscGeo, contactDiscMat);
+    contactDisc.rotation.x = -Math.PI / 2;
+    contactDisc.position.y = -1.138;
+    pedestalGroup.add(contactDisc);
+
+    // Pedestal top platform
+    const platformGeo = new THREE.CylinderGeometry(1.2, 1.25, 0.04, 64);
+    const platformMat = new THREE.MeshStandardMaterial({
+      color: 0xf5f3ee,
+      roughness: 0.35,
       metalness: 0.08,
     });
-    const pedestalMesh = new THREE.Mesh(pedestalGeo, pedestalMat);
-    pedestalMesh.position.y = -1.14;
-    pedestalMesh.receiveShadow = true;
-    pedestalGroup.add(pedestalMesh);
+    const platformMesh = new THREE.Mesh(platformGeo, platformMat);
+    platformMesh.position.y = -1.12;
+    platformMesh.receiveShadow = true;
+    pedestalGroup.add(platformMesh);
 
-    // Soft blurred ground contact shadow disc (Snapchat style)
+    // Soft Radial Gradient Floor Shadow
     try {
       const shadowCanvas = document.createElement("canvas");
-      shadowCanvas.width = 128;
-      shadowCanvas.height = 128;
-      const sCtx = shadowCanvas.getContext("2d");
-      if (sCtx) {
-        const grad = sCtx.createRadialGradient(64, 64, 6, 64, 64, 60);
-        grad.addColorStop(0, "rgba(22, 22, 26, 0.55)");
-        grad.addColorStop(0.35, "rgba(22, 22, 26, 0.28)");
-        grad.addColorStop(0.7, "rgba(22, 22, 26, 0.08)");
-        grad.addColorStop(1, "rgba(22, 22, 26, 0)");
-        sCtx.fillStyle = grad;
-        sCtx.fillRect(0, 0, 128, 128);
+      shadowCanvas.width = 256;
+      shadowCanvas.height = 256;
+      const ctx = shadowCanvas.getContext("2d");
+      if (ctx) {
+        const gradient = ctx.createRadialGradient(128, 128, 25, 128, 128, 120);
+        gradient.addColorStop(0, "rgba(22, 22, 24, 0.28)");
+        gradient.addColorStop(0.5, "rgba(22, 22, 24, 0.12)");
+        gradient.addColorStop(1, "rgba(22, 22, 24, 0)");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 256, 256);
       }
-      const shadowTex = new THREE.CanvasTexture(shadowCanvas);
-      const shadowPlaneGeo = new THREE.PlaneGeometry(1.5, 1.5);
+      const shadowTexture = new THREE.CanvasTexture(shadowCanvas);
+      const shadowPlaneGeo = new THREE.PlaneGeometry(3.0, 3.0);
       const shadowPlaneMat = new THREE.MeshBasicMaterial({
-        map: shadowTex,
+        map: shadowTexture,
         transparent: true,
         depthWrite: false,
       });
@@ -352,358 +280,12 @@ export function ThreeMannequinViewer({
 
     scene.add(pedestalGroup);
 
-    // 6. Materials - High-End PBR Skin Shader with Subsurface Scattering emulation
-    const skinMat = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(skinToneHex),
-      roughness: 0.52,
-      metalness: 0.02,
-      clearcoat: 0.12,
-      clearcoatRoughness: 0.38,
-      sheen: 0.35,
-      sheenColor: new THREE.Color(0xffe2d2),
-      sheenRoughness: 0.45,
-    });
-    skinMaterialRef.current = skinMat;
-
-    const baseWearMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(baseWearHex),
-      roughness: 0.85,
-      metalness: 0.02,
-    });
-    baseWearMaterialRef.current = baseWearMat;
-
-    // Garment Materials
-    const topMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(outfit?.topColor || "#F2EFE9"),
-      roughness: 0.82,
-      metalness: 0.02,
-      side: THREE.DoubleSide,
-    });
-    topMaterialRef.current = topMat;
-
-    const bottomMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(outfit?.bottomColor || "#383E38"),
-      roughness: 0.78,
-      metalness: 0.02,
-      side: THREE.DoubleSide,
-    });
-    bottomMaterialRef.current = bottomMat;
-
-    const shoesMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color(outfit?.shoesColor || "#F8F8F8"),
-      roughness: 0.45,
-      metalness: 0.05,
-    });
-    shoesMaterialRef.current = shoesMat;
-
-    const shoesSoleMat = new THREE.MeshStandardMaterial({
-      color: new THREE.Color("#EBE8E3"),
-      roughness: 0.55,
-      metalness: 0.02,
-    });
-    shoesSoleMaterialRef.current = shoesSoleMat;
-
-    // 7. Build Procedural Anatomical Mannequin
-    const mannequinGroup = new THREE.Group();
-    mannequinGroupRef.current = mannequinGroup;
-    scene.add(mannequinGroup);
-
-    // Head (Sculpted Croquis)
-    const headGeo = createSculptedHeadGeometry();
-    const headMesh = new THREE.Mesh(headGeo, skinMat);
-    headMesh.position.y = 1.0;
-    headMesh.castShadow = true;
-    mannequinGroup.add(headMesh);
-
-    // Neck & Clavicle
-    const neckGeo = createNeckGeometry();
-    const neckMesh = new THREE.Mesh(neckGeo, skinMat);
-    neckMesh.position.y = 0.77;
-    neckMesh.castShadow = true;
-    mannequinGroup.add(neckMesh);
-
-    // Upper Torso / Chest & Ribcage
-    const torsoGeo = createTorsoGeometry(false);
-    const torsoMesh = new THREE.Mesh(torsoGeo, skinMat);
-    torsoMesh.position.y = 0.50;
-    torsoMesh.castShadow = true;
-    torsoMesh.receiveShadow = true;
-    torsoRef.current = torsoMesh;
-    mannequinGroup.add(torsoMesh);
-
-    // Base Wear: Bodysuit Top
-    const chestBaseGeo = createTorsoGeometry(true);
-    const chestBaseMesh = new THREE.Mesh(chestBaseGeo, baseWearMat);
-    chestBaseMesh.position.y = 0.50;
-    chestBaseMesh.castShadow = true;
-    chestBaseRef.current = chestBaseMesh;
-    mannequinGroup.add(chestBaseMesh);
-
-    // Top Garments: T-Shirt Torso
-    const teeTorsoMesh = new THREE.Mesh(createTeeTorsoGeometry(), topMat);
-    teeTorsoMesh.position.y = 0.50;
-    teeTorsoMesh.castShadow = true;
-    teeTorsoMesh.visible = outfit?.topType === "tee";
-    teeTorsoRef.current = teeTorsoMesh;
-    mannequinGroup.add(teeTorsoMesh);
-
-    // Top Garments: Button-Down Shirt Torso
-    const shirtTorsoMesh = new THREE.Mesh(createShirtTorsoGeometry(), topMat);
-    shirtTorsoMesh.position.y = 0.50;
-    shirtTorsoMesh.castShadow = true;
-    shirtTorsoMesh.visible = outfit?.topType === "shirt";
-    shirtTorsoRef.current = shirtTorsoMesh;
-    mannequinGroup.add(shirtTorsoMesh);
-
-    // Top Garments: Structured Jacket / Coat Torso
-    const jacketTorsoMesh = new THREE.Mesh(createJacketTorsoGeometry(), topMat);
-    jacketTorsoMesh.position.y = 0.50;
-    jacketTorsoMesh.castShadow = true;
-    jacketTorsoMesh.visible = outfit?.topType === "jacket";
-    jacketTorsoRef.current = jacketTorsoMesh;
-    mannequinGroup.add(jacketTorsoMesh);
-
-    // Pelvis & Hips
-    const hipsGeo = createPelvisGeometry(false);
-    const hipsMesh = new THREE.Mesh(hipsGeo, skinMat);
-    hipsMesh.position.y = 0.08;
-    hipsMesh.castShadow = true;
-    hipsRef.current = hipsMesh;
-    mannequinGroup.add(hipsMesh);
-
-    // Base Wear: Bodysuit Shorts
-    const hipsBaseGeo = createPelvisGeometry(true);
-    const hipsBaseMesh = new THREE.Mesh(hipsBaseGeo, baseWearMat);
-    hipsBaseMesh.position.y = 0.08;
-    hipsBaseMesh.castShadow = true;
-    hipsBaseRef.current = hipsBaseMesh;
-    mannequinGroup.add(hipsBaseMesh);
-
-    // Bottom Garments: Pants Pelvis Shell
-    const pantsPelvisMesh = new THREE.Mesh(createPantsPelvisGeometry(), bottomMat);
-    pantsPelvisMesh.position.y = 0.08;
-    pantsPelvisMesh.castShadow = true;
-    pantsPelvisMesh.visible = outfit?.bottomType !== undefined && outfit.bottomType !== "none";
-    pantsPelvisRef.current = pantsPelvisMesh;
-    mannequinGroup.add(pantsPelvisMesh);
-
-    // Arms (Left & Right)
-    function createArm(isLeft: boolean) {
-      const armGroup = new THREE.Group();
-      const sign = isLeft ? -1 : 1;
-
-      // Shoulder ball articulation
-      const shoulderGeo = createJointGeometry(0.075);
-      const shoulder = new THREE.Mesh(shoulderGeo, skinMat);
-      shoulder.castShadow = true;
-      armGroup.add(shoulder);
-
-      // Sculpted Upper arm (Bicep/Deltoid)
-      const upperGeo = createUpperArmGeometry();
-      const upper = new THREE.Mesh(upperGeo, skinMat);
-      upper.position.set(sign * 0.04, -0.19, 0);
-      upper.rotation.z = sign * -0.12;
-      upper.castShadow = true;
-      armGroup.add(upper);
-
-      // Short sleeve (Tee)
-      const shortSleeveMesh = new THREE.Mesh(createShortSleeveGeometry(), topMat);
-      shortSleeveMesh.position.set(sign * 0.04, -0.19, 0);
-      shortSleeveMesh.rotation.z = sign * -0.12;
-      shortSleeveMesh.castShadow = true;
-      shortSleeveMesh.visible = outfit?.topType === "tee";
-      if (isLeft) leftShortSleeveRef.current = shortSleeveMesh;
-      else rightShortSleeveRef.current = shortSleeveMesh;
-      armGroup.add(shortSleeveMesh);
-
-      // Long sleeve upper (Shirt / Jacket)
-      const longUpperMesh = new THREE.Mesh(createLongSleeveUpperGeometry(), topMat);
-      longUpperMesh.position.set(sign * 0.04, -0.19, 0);
-      longUpperMesh.rotation.z = sign * -0.12;
-      longUpperMesh.castShadow = true;
-      longUpperMesh.visible = outfit?.topType === "shirt" || outfit?.topType === "jacket";
-      if (isLeft) leftLongUpperRef.current = longUpperMesh;
-      else rightLongUpperRef.current = longUpperMesh;
-      armGroup.add(longUpperMesh);
-
-      // Elbow joint articulation
-      const elbowGeo = createJointGeometry(0.055);
-      const elbow = new THREE.Mesh(elbowGeo, skinMat);
-      elbow.position.set(sign * 0.075, -0.40, 0);
-      elbow.castShadow = true;
-      armGroup.add(elbow);
-
-      // Sculpted Forearm
-      const foreGeo = createForearmGeometry();
-      const fore = new THREE.Mesh(foreGeo, skinMat);
-      fore.position.set(sign * 0.09, -0.59, 0.02);
-      fore.rotation.z = sign * -0.05;
-      fore.castShadow = true;
-      armGroup.add(fore);
-
-      // Long sleeve forearm (Shirt / Jacket)
-      const longForeMesh = new THREE.Mesh(createLongSleeveForearmGeometry(), topMat);
-      longForeMesh.position.set(sign * 0.09, -0.59, 0.02);
-      longForeMesh.rotation.z = sign * -0.05;
-      longForeMesh.castShadow = true;
-      longForeMesh.visible = outfit?.topType === "shirt" || outfit?.topType === "jacket";
-      if (isLeft) leftLongForeRef.current = longForeMesh;
-      else rightLongForeRef.current = longForeMesh;
-      armGroup.add(longForeMesh);
-
-      // Minimalist Atelier Hand
-      const handGeo = createHandGeometry();
-      const hand = new THREE.Mesh(handGeo, skinMat);
-      hand.position.set(sign * 0.10, -0.80, 0.02);
-      hand.castShadow = true;
-      armGroup.add(hand);
-
-      return armGroup;
-    }
-
-    const leftArm = createArm(true);
-    leftArm.position.set(-0.28, 0.65, 0);
-    leftArmRef.current = leftArm;
-    mannequinGroup.add(leftArm);
-
-    const rightArm = createArm(false);
-    rightArm.position.set(0.28, 0.65, 0);
-    rightArmRef.current = rightArm;
-    mannequinGroup.add(rightArm);
-
-    // Legs (Left & Right)
-    function createLeg(isLeft: boolean) {
-      const legGroup = new THREE.Group();
-      const sign = isLeft ? -1 : 1;
-
-      // Hip joint ball articulation
-      const hipJointGeo = createJointGeometry(0.08);
-      const hipJoint = new THREE.Mesh(hipJointGeo, skinMat);
-      hipJoint.castShadow = true;
-      legGroup.add(hipJoint);
-
-      // Sculpted Thigh
-      const thighGeo = createThighGeometry();
-      const thigh = new THREE.Mesh(thighGeo, skinMat);
-      thigh.position.set(sign * 0.015, -0.26, 0);
-      thigh.castShadow = true;
-      legGroup.add(thigh);
-
-      // Straight Pants Thigh
-      const straightThigh = new THREE.Mesh(createStraightPantsThighGeometry(), bottomMat);
-      straightThigh.position.set(sign * 0.015, -0.26, 0);
-      straightThigh.castShadow = true;
-      straightThigh.visible = outfit?.bottomType === "trousers";
-      if (isLeft) leftStraightThighRef.current = straightThigh;
-      else rightStraightThighRef.current = straightThigh;
-      legGroup.add(straightThigh);
-
-      // Wide Chinos Thigh
-      const wideThigh = new THREE.Mesh(createWidePantsThighGeometry(), bottomMat);
-      wideThigh.position.set(sign * 0.015, -0.26, 0);
-      wideThigh.castShadow = true;
-      wideThigh.visible = outfit?.bottomType === "wide_chinos";
-      if (isLeft) leftWideThighRef.current = wideThigh;
-      else rightWideThighRef.current = wideThigh;
-      legGroup.add(wideThigh);
-
-      // Shorts Thigh
-      const shortsThigh = new THREE.Mesh(createShortsThighGeometry(), bottomMat);
-      shortsThigh.position.set(sign * 0.015, -0.26, 0);
-      shortsThigh.castShadow = true;
-      shortsThigh.visible = outfit?.bottomType === "shorts";
-      if (isLeft) leftShortsThighRef.current = shortsThigh;
-      else rightShortsThighRef.current = shortsThigh;
-      legGroup.add(shortsThigh);
-
-      // Knee joint articulation
-      const kneeGeo = createJointGeometry(0.065);
-      const knee = new THREE.Mesh(kneeGeo, skinMat);
-      knee.position.set(sign * 0.02, -0.54, 0);
-      knee.castShadow = true;
-      legGroup.add(knee);
-
-      // Sculpted Calf & Shin
-      const calfGeo = createCalfGeometry();
-      const calf = new THREE.Mesh(calfGeo, skinMat);
-      calf.position.set(sign * 0.02, -0.80, 0);
-      calf.castShadow = true;
-      legGroup.add(calf);
-
-      // Straight Pants Calf
-      const straightCalf = new THREE.Mesh(createStraightPantsCalfGeometry(), bottomMat);
-      straightCalf.position.set(sign * 0.02, -0.80, 0);
-      straightCalf.castShadow = true;
-      straightCalf.visible = outfit?.bottomType === "trousers";
-      if (isLeft) leftStraightCalfRef.current = straightCalf;
-      else rightStraightCalfRef.current = straightCalf;
-      legGroup.add(straightCalf);
-
-      // Wide Chinos Calf
-      const wideCalf = new THREE.Mesh(createWidePantsCalfGeometry(), bottomMat);
-      wideCalf.position.set(sign * 0.02, -0.80, 0);
-      wideCalf.castShadow = true;
-      wideCalf.visible = outfit?.bottomType === "wide_chinos";
-      if (isLeft) leftWideCalfRef.current = wideCalf;
-      else rightWideCalfRef.current = wideCalf;
-      legGroup.add(wideCalf);
-
-      // Sculpted Atelier Foot (bare)
-      const footGeo = createFootGeometry();
-      const foot = new THREE.Mesh(footGeo, skinMat);
-      foot.position.set(sign * 0.02, -1.05, 0.04);
-      foot.castShadow = true;
-      foot.visible = !outfit?.shoesType || outfit.shoesType === "none";
-      if (isLeft) leftFootBareRef.current = foot;
-      else rightFootBareRef.current = foot;
-      legGroup.add(foot);
-
-      // Sneaker Group
-      const sneakerGroup = new THREE.Group();
-      sneakerGroup.position.set(sign * 0.02, -1.05, 0.04);
-      sneakerGroup.visible = outfit?.shoesType === "sneakers";
-      const sneakerUpper = new THREE.Mesh(createSneakerGeometry(), shoesMat);
-      sneakerUpper.castShadow = true;
-      sneakerGroup.add(sneakerUpper);
-      const sneakerSole = new THREE.Mesh(createSneakerSoleGeometry(), shoesSoleMat);
-      sneakerSole.position.y = -0.038;
-      sneakerSole.castShadow = true;
-      sneakerGroup.add(sneakerSole);
-      if (isLeft) leftSneakerRef.current = sneakerGroup;
-      else rightSneakerRef.current = sneakerGroup;
-      legGroup.add(sneakerGroup);
-
-      // Loafer
-      const loaferMesh = new THREE.Mesh(createLoaferGeometry(), shoesMat);
-      loaferMesh.position.set(sign * 0.02, -1.05, 0.04);
-      loaferMesh.castShadow = true;
-      loaferMesh.visible = outfit?.shoesType === "loafers";
-      if (isLeft) leftLoaferRef.current = loaferMesh;
-      else rightLoaferRef.current = loaferMesh;
-      legGroup.add(loaferMesh);
-
-      return legGroup;
-    }
-
-    const leftLeg = createLeg(true);
-    leftLeg.position.set(-0.13, -0.05, 0);
-    leftLegRef.current = leftLeg;
-    mannequinGroup.add(leftLeg);
-
-    const rightLeg = createLeg(false);
-    rightLeg.position.set(0.13, -0.05, 0);
-    rightLegRef.current = rightLeg;
-    mannequinGroup.add(rightLeg);
-
-    // Initial scale & position
-    mannequinGroup.position.y = 0.02;
-
-    // 7b. External 3D Model Group (Mixamo X-Bot, GLB Models)
+    // External 3D Model Group (Twin Models)
     const externalModelGroup = new THREE.Group();
     externalModelGroupRef.current = externalModelGroup;
     scene.add(externalModelGroup);
 
-    // 8. Animation & Render Loop
+    // Animation & Render Loop
     let lastTime = performance.now();
     const animate = () => {
       animFrameRef.current = requestAnimationFrame(animate);
@@ -734,17 +316,12 @@ export function ThreeMannequinViewer({
         camera.lookAt(0, camTarget.y, 0);
       }
 
-      if (mannequinGroupRef.current) {
-        mannequinGroupRef.current.rotation.y = rot.y;
-        mannequinGroupRef.current.rotation.x = rot.pitch;
-      }
-
       if (externalModelGroupRef.current) {
         externalModelGroupRef.current.rotation.y = rot.y;
         externalModelGroupRef.current.rotation.x = rot.pitch;
       }
 
-      // 8b. Natural idle ARKit blinking & expression cycle (Bitmoji Vitality Engine)
+      // Natural idle ARKit blinking & expression cycle (Bitmoji Vitality Engine)
       const nowSec = now / 1000;
       const blinkPeriod = 3.8;
       const blinkDuration = 0.16;
@@ -789,7 +366,7 @@ export function ThreeMannequinViewer({
     };
     animate();
 
-    // 9. Resize observer
+    // Resize observer
     const handleResize = () => {
       if (!container || !renderer || !camera) return;
       const w = container.clientWidth;
@@ -800,20 +377,18 @@ export function ThreeMannequinViewer({
     };
     window.addEventListener("resize", handleResize);
 
-    // 10. Pointer / Touch Events for 360° Drag & Pinch Zoom
+    // Pointer Interaction Handlers (Touch & Mouse Turntable)
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
       isPointerDownRef.current = true;
       setIsInteracting(true);
-
       if ("touches" in e) {
-        if (e.touches.length === 2) {
-          // Pinch start
+        if (e.touches.length === 1) {
+          pointerStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        } else if (e.touches.length === 2) {
           const dx = e.touches[0].clientX - e.touches[1].clientX;
           const dy = e.touches[0].clientY - e.touches[1].clientY;
           pinchStartDistRef.current = Math.hypot(dx, dy);
-          return;
         }
-        pointerStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
       } else {
         pointerStartRef.current = { x: e.clientX, y: e.clientY };
       }
@@ -822,31 +397,33 @@ export function ThreeMannequinViewer({
     const onPointerMove = (e: MouseEvent | TouchEvent) => {
       if (!isPointerDownRef.current) return;
 
-      if ("touches" in e && e.touches.length === 2) {
-        // Pinch Zoom
-        const dx = e.touches[0].clientX - e.touches[1].clientX;
-        const dy = e.touches[0].clientY - e.touches[1].clientY;
-        const currentDist = Math.hypot(dx, dy);
+      let currentX = 0;
+      let currentY = 0;
 
-        if (pinchStartDistRef.current !== null) {
-          const factor = pinchStartDistRef.current / currentDist;
-          const newDist = Math.max(
+      if ("touches" in e) {
+        if (e.touches.length === 2 && pinchStartDistRef.current !== null) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const dist = Math.hypot(dx, dy);
+          const diff = (pinchStartDistRef.current - dist) * 0.008;
+          pinchStartDistRef.current = dist;
+          cameraTargetRef.current.targetDistance = Math.max(
             zoomRef.current.min,
-            Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance * (factor > 1 ? 1.02 : 0.98))
+            Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance + diff)
           );
-          cameraTargetRef.current.targetDistance = newDist;
-          zoomRef.current.targetDistance = newDist;
+          return;
+        } else if (e.touches.length === 1) {
+          currentX = e.touches[0].clientX;
+          currentY = e.touches[0].clientY;
         }
-        pinchStartDistRef.current = currentDist;
-        return;
+      } else {
+        currentX = e.clientX;
+        currentY = e.clientY;
       }
 
-      const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
-      const clientY = "touches" in e ? e.touches[0].clientY : e.clientY;
-      const deltaX = clientX - pointerStartRef.current.x;
-      const deltaY = clientY - pointerStartRef.current.y;
-
-      pointerStartRef.current = { x: clientX, y: clientY };
+      const deltaX = currentX - pointerStartRef.current.x;
+      const deltaY = currentY - pointerStartRef.current.y;
+      pointerStartRef.current = { x: currentX, y: currentY };
 
       // Update rotational target
       rotationRef.current.targetY += deltaX * 0.012;
@@ -965,46 +542,20 @@ export function ThreeMannequinViewer({
     }
   };
 
-  // Load external 3D model (Bitmoji-grade GLB models) or toggle procedural Stylized Twin
+  // Load external 3D model (Stylized Twin Models)
   useEffect(() => {
     const extGroup = externalModelGroupRef.current;
-    const manGroup = mannequinGroupRef.current;
+    if (!extGroup) return;
 
-    if (!extGroup || !manGroup) return;
-
-    // Resolve effective model URL
-    let effectiveUrl: string | null = null;
-    if (modelType === "procedural") {
-      effectiveUrl = null;
-    } else if (
-      modelType === "female" ||
-      modelType === "/models/female-twin.glb" ||
-      modelType === "michelle" ||
-      modelType === "base"
-    ) {
-      effectiveUrl = "/models/female-twin.glb";
-    } else if (
+    // Resolve model URL: Only Stylized Female Twin and Stylized Male Twin exist
+    const isMale =
       modelType === "male" ||
       modelType === "/models/male-twin.glb" ||
       modelType === "soldier" ||
-      modelType === "xbot"
-    ) {
-      effectiveUrl = "/models/male-twin.glb";
-    } else if (typeof modelType === "string" && modelType.startsWith("/")) {
-      effectiveUrl = modelType;
-    } else {
-      // Default: Choose Bitmoji-grade stylized twin based on presentation
-      effectiveUrl = presentation === "masculine" ? "/models/male-twin.glb" : "/models/female-twin.glb";
-    }
-
-    if (!effectiveUrl) {
-      extGroup.visible = false;
-      manGroup.visible = true;
-      loadedModelRef.current = null;
-      modularMeshesRef.current = { eyes: [] };
-      setIsLoadingModel(false);
-      return;
-    }
+      modelType === "xbot" ||
+      (modelType !== "female" && modelType !== "/models/female-twin.glb" && presentation === "masculine");
+    const effectiveUrl = isMale ? "/models/male-twin.glb" : "/models/female-twin.glb";
+    isFemaleModelRef.current = !isMale;
 
     setIsLoadingModel(true);
 
@@ -1084,7 +635,6 @@ export function ThreeMannequinViewer({
         extGroup.clear();
         extGroup.add(gltf.scene);
         extGroup.visible = true;
-        manGroup.visible = false;
         loadedModelRef.current = gltf.scene;
         setIsLoadingModel(false);
         applyFashionStance(stance);
@@ -1094,7 +644,6 @@ export function ThreeMannequinViewer({
       (err) => {
         console.warn(`GLTF load failed for ${effectiveUrl}:`, err);
         if (isCancelled) return;
-        manGroup.visible = true;
         setIsLoadingModel(false);
       }
     );
@@ -1104,7 +653,7 @@ export function ThreeMannequinViewer({
     };
   }, [modelType, presentation]);
 
-  // Apply fashion model stances & postures (Snapchat/Mixamo pose library)
+  // Apply fashion model stances & postures (Mixamo / Ready Player Me compatible armature)
   function applyFashionStance(activeStance: FashionStanceType) {
     const bones = modelBonesRef.current;
     const initQuats = initialBoneQuatsRef.current;
@@ -1126,51 +675,40 @@ export function ThreeMannequinViewer({
         }
       }
 
-      if (activeStance === "runway_confident") {
-        rotateBone("hips", 0, 0.08, -0.04);
-        rotateBone("spine1", 0, -0.06, 0.03);
-        rotateBone("leftarm", 0.15, -0.1, -1.05);
-        rotateBone("leftforearm", 0, 0.35, 0);
-        rotateBone("rightarm", -0.1, 0.12, 1.1);
-        rotateBone("rightforearm", -0.25, 0, 0);
-        rotateBone("head", 0.02, -0.08, 0.03);
-      } else if (activeStance === "casual_streetwear") {
-        rotateBone("hips", 0, -0.05, 0.03);
-        rotateBone("spine1", 0.04, 0.03, -0.02);
-        rotateBone("leftarm", 0.25, -0.12, -0.85);
-        rotateBone("leftforearm", -0.45, 0.1, 0);
-        rotateBone("rightarm", 0.25, 0.12, 0.85);
-        rotateBone("rightforearm", -0.45, -0.1, 0);
-        rotateBone("head", -0.03, 0.06, 0);
-      } else if (activeStance === "editorial_chic") {
-        rotateBone("hips", 0, 0.12, -0.05);
-        rotateBone("spine1", 0, -0.08, 0.03);
-        rotateBone("neck", -0.04, 0, 0);
-        rotateBone("head", 0.06, -0.12, 0.04);
-        rotateBone("leftarm", 0.05, 0.15, -1.18);
-        rotateBone("rightarm", -0.12, 0.1, 0.95);
-        rotateBone("rightforearm", 0, 0, 0.35);
-      } else {
-        // neutral_pose: Natural relaxed standing A-pose
-        rotateBone("leftarm", 0, 0, -1.15);
-        rotateBone("rightarm", 0, 0, 1.15);
-      }
-    }
+      // Base arm X offset: Female bind is horizontal T-pose (+1.18 rad brings arms down beside hips);
+      // Male bind is already a relaxed standing A-pose (+0.05 rad keeps arms perfectly natural).
+      const baseArmX = isFemaleModelRef.current ? 1.18 : 0.05;
 
-    // Procedural mannequin stance
-    if (leftArmRef.current && rightArmRef.current) {
       if (activeStance === "runway_confident") {
-        leftArmRef.current.rotation.set(0.12, -0.08, -0.15);
-        rightArmRef.current.rotation.set(-0.1, 0.08, 0.2);
+        rotateBone("hips", 0, 0.06, -0.03);
+        rotateBone("spine1", 0, -0.04, 0.02);
+        rotateBone("head", 0.02, -0.06, 0.02);
+        rotateBone("leftarm", baseArmX + 0.06, 0.04, 0);
+        rotateBone("leftforearm", 0.12, 0, 0.18);
+        rotateBone("rightarm", baseArmX + 0.02, -0.04, 0);
+        rotateBone("rightforearm", -0.12, 0, -0.18);
       } else if (activeStance === "casual_streetwear") {
-        leftArmRef.current.rotation.set(0.22, 0, -0.08);
-        rightArmRef.current.rotation.set(0.22, 0, 0.08);
+        rotateBone("hips", 0, -0.04, 0.02);
+        rotateBone("spine1", 0.02, 0.02, -0.01);
+        rotateBone("head", -0.02, 0.05, 0);
+        rotateBone("leftarm", baseArmX + 0.08, 0, 0);
+        rotateBone("leftforearm", 0.18, 0, 0.22);
+        rotateBone("rightarm", baseArmX + 0.08, 0, 0);
+        rotateBone("rightforearm", -0.18, 0, -0.22);
       } else if (activeStance === "editorial_chic") {
-        leftArmRef.current.rotation.set(0.05, 0.15, -0.22);
-        rightArmRef.current.rotation.set(-0.12, 0, 0.16);
+        rotateBone("hips", 0, 0.08, -0.04);
+        rotateBone("spine1", 0, -0.06, 0.02);
+        rotateBone("head", 0.04, -0.08, 0.03);
+        rotateBone("leftarm", baseArmX + 0.03, 0.05, 0);
+        rotateBone("leftforearm", 0.22, 0, 0.25);
+        rotateBone("rightarm", baseArmX - 0.04, -0.05, 0);
+        rotateBone("rightforearm", -0.1, 0, -0.15);
       } else {
-        leftArmRef.current.rotation.set(0, 0, 0);
-        rightArmRef.current.rotation.set(0, 0, 0);
+        // neutral_pose: Natural standing A-pose beside hips
+        rotateBone("leftarm", baseArmX, 0, 0);
+        rotateBone("rightarm", baseArmX, 0, 0);
+        rotateBone("leftforearm", 0.1, 0, 0.1);
+        rotateBone("rightforearm", -0.1, 0, -0.1);
       }
     }
   }
@@ -1179,202 +717,13 @@ export function ThreeMannequinViewer({
     applyFashionStance(stance);
   }, [stance, modelType]);
 
-  // Rebuild modular head accessories (hairstyles & eyewear) and attach to active avatar head socket
+  // Update materials, proportions and height when styling or outfit changes
   useEffect(() => {
-    let headGroup = headAccessoriesGroupRef.current;
-    if (!headGroup) {
-      headGroup = new THREE.Group();
-      headAccessoriesGroupRef.current = headGroup;
-    }
-
-    const manGroup = mannequinGroupRef.current;
-    const extGroup = externalModelGroupRef.current;
-
-    // Position socket based on active model head coordinates
-    if (manGroup && headGroup.parent !== manGroup) {
-      manGroup.add(headGroup);
-    }
-    headGroup.position.set(0, 1.0, 0);
-    headGroup.scale.set(1.0, 1.0, 1.0);
-
-    headGroup.clear();
-
-    const hairMat = createHairMaterial({ colorHex: hairColorHex });
-
-    if (hairStyle === "fade") {
-      const geo = createFadeHairGeometry();
-      const mesh = new THREE.Mesh(geo, hairMat);
-      mesh.castShadow = true;
-      headGroup.add(mesh);
-    } else if (hairStyle === "wavy_curtains") {
-      headGroup.add(createWavyCurtainsHair(hairMat));
-    } else if (hairStyle === "sleek_bob") {
-      headGroup.add(createSleekBobHair(hairMat));
-    } else if (hairStyle === "high_ponytail") {
-      headGroup.add(createHighPonytailHair(hairMat));
-    } else if (hairStyle === "afro_curls") {
-      headGroup.add(createAfroCurlsHair(hairMat));
-    } else if (hairStyle === "chic_beanie") {
-      headGroup.add(createChicBeanie(hairColorHex));
-    }
-
-    if (eyewear === "designer_sunglasses") {
-      headGroup.add(createDesignerSunglasses());
-    }
-  }, [modelType, hairStyle, hairColorHex, eyewear]);
-
-  // Morph proportions and update garments whenever build, presentation, height, or outfit changes
-  useEffect(() => {
-    if (!skinMaterialRef.current || !baseWearMaterialRef.current) return;
-
-    // Update material colors
-    skinMaterialRef.current.color.set(skinToneHex);
-    baseWearMaterialRef.current.color.set(baseWearHex);
-
-    // Update Bitmoji modular stylized twin
     updateModularTwin();
-
-    if (topMaterialRef.current && outfit?.topColor) {
-      topMaterialRef.current.color.set(outfit.topColor);
-    }
-    if (bottomMaterialRef.current && outfit?.bottomColor) {
-      bottomMaterialRef.current.color.set(outfit.bottomColor);
-    }
-    if (shoesMaterialRef.current && outfit?.shoesColor) {
-      shoesMaterialRef.current.color.set(outfit.shoesColor);
-    }
-
-    // Top Garments Visibility
-    const topType = outfit?.topType || "none";
-    if (teeTorsoRef.current) teeTorsoRef.current.visible = topType === "tee";
-    if (shirtTorsoRef.current) shirtTorsoRef.current.visible = topType === "shirt";
-    if (jacketTorsoRef.current) jacketTorsoRef.current.visible = topType === "jacket";
-
-    const hasShortSleeves = topType === "tee";
-    if (leftShortSleeveRef.current) leftShortSleeveRef.current.visible = hasShortSleeves;
-    if (rightShortSleeveRef.current) rightShortSleeveRef.current.visible = hasShortSleeves;
-
-    const hasLongSleeves = topType === "shirt" || topType === "jacket";
-    if (leftLongUpperRef.current) leftLongUpperRef.current.visible = hasLongSleeves;
-    if (rightLongUpperRef.current) rightLongUpperRef.current.visible = hasLongSleeves;
-    if (leftLongForeRef.current) leftLongForeRef.current.visible = hasLongSleeves;
-    if (rightLongForeRef.current) rightLongForeRef.current.visible = hasLongSleeves;
-
-    // Occlusion Culling: Hide underlying body parts to eliminate clipping / z-fighting (Snapchat standard)
-    if (torsoRef.current) {
-      torsoRef.current.visible = topType === "none";
-    }
-    if (chestBaseRef.current) {
-      chestBaseRef.current.visible = topType === "none" || topType === "jacket";
-    }
-
-    // Bottom Garments Visibility & Occlusion Culling
-    const bottomType = outfit?.bottomType || "none";
-    const hasPants = bottomType !== "none";
-    if (pantsPelvisRef.current) pantsPelvisRef.current.visible = hasPants;
-    if (hipsBaseRef.current) hipsBaseRef.current.visible = !hasPants;
-    if (hipsRef.current) hipsRef.current.visible = !hasPants;
-
-    const isStraight = bottomType === "trousers";
-    if (leftStraightThighRef.current) leftStraightThighRef.current.visible = isStraight;
-    if (rightStraightThighRef.current) rightStraightThighRef.current.visible = isStraight;
-    if (leftStraightCalfRef.current) leftStraightCalfRef.current.visible = isStraight;
-    if (rightStraightCalfRef.current) rightStraightCalfRef.current.visible = isStraight;
-
-    const isWide = bottomType === "wide_chinos";
-    if (leftWideThighRef.current) leftWideThighRef.current.visible = isWide;
-    if (rightWideThighRef.current) rightWideThighRef.current.visible = isWide;
-    if (leftWideCalfRef.current) leftWideCalfRef.current.visible = isWide;
-    if (rightWideCalfRef.current) rightWideCalfRef.current.visible = isWide;
-
-    const isShorts = bottomType === "shorts";
-    if (leftShortsThighRef.current) leftShortsThighRef.current.visible = isShorts;
-    if (rightShortsThighRef.current) rightShortsThighRef.current.visible = isShorts;
-
-    // Footwear Visibility
-    const shoesType = outfit?.shoesType || "none";
-    const isBare = shoesType === "none";
-    if (leftFootBareRef.current) leftFootBareRef.current.visible = isBare;
-    if (rightFootBareRef.current) rightFootBareRef.current.visible = isBare;
-    if (leftSneakerRef.current) leftSneakerRef.current.visible = shoesType === "sneakers";
-    if (rightSneakerRef.current) rightSneakerRef.current.visible = shoesType === "sneakers";
-    if (leftLoaferRef.current) leftLoaferRef.current.visible = shoesType === "loafers";
-    if (rightLoaferRef.current) rightLoaferRef.current.visible = shoesType === "loafers";
-
-    // Compute proportional scales based on build & presentation + fine-tuned bodyMorphs
-    let shoulderScaleX = 1.0;
-    let chestScaleX = 1.0;
-    let waistScaleX = 1.0;
-    let hipScaleX = 1.0;
-    let legScaleX = 1.0;
-
-    if (build === "slim") {
-      shoulderScaleX = presentation === "masculine" ? 0.95 : 0.88;
-      chestScaleX = 0.88;
-      waistScaleX = 0.85;
-      hipScaleX = presentation === "feminine" ? 0.95 : 0.86;
-      legScaleX = 0.88;
-    } else if (build === "neutral") {
-      shoulderScaleX = presentation === "masculine" ? 1.1 : 1.0;
-      chestScaleX = 1.0;
-      waistScaleX = 1.0;
-      hipScaleX = presentation === "feminine" ? 1.08 : 1.0;
-      legScaleX = 1.0;
-    } else if (build === "curvy") {
-      shoulderScaleX = presentation === "masculine" ? 1.25 : 1.08;
-      chestScaleX = 1.2;
-      waistScaleX = 1.15;
-      hipScaleX = presentation === "feminine" ? 1.28 : 1.18;
-      legScaleX = 1.2;
-    }
-
-    // Multiply fine-tuned morph targets if provided
-    if (bodyMorphs) {
-      if (bodyMorphs.shoulderWidth !== undefined) shoulderScaleX *= bodyMorphs.shoulderWidth;
-      if (bodyMorphs.chestBust !== undefined) chestScaleX *= bodyMorphs.chestBust;
-      if (bodyMorphs.waistScale !== undefined) waistScaleX *= bodyMorphs.waistScale;
-      if (bodyMorphs.hipWidth !== undefined) hipScaleX *= bodyMorphs.hipWidth;
-      if (bodyMorphs.legFullness !== undefined) legScaleX *= bodyMorphs.legFullness;
-    }
-
-    if (torsoRef.current && chestBaseRef.current) {
-      torsoRef.current.scale.set(chestScaleX, 1.0, chestScaleX * 0.95);
-      chestBaseRef.current.scale.set(chestScaleX * 1.02, 1.0, chestScaleX * 0.97);
-      [teeTorsoRef.current, shirtTorsoRef.current, jacketTorsoRef.current].forEach((m) => {
-        if (m) m.scale.set(chestScaleX, 1.0, chestScaleX * 0.95);
-      });
-    }
-
-    if (hipsRef.current && hipsBaseRef.current) {
-      hipsRef.current.scale.set(hipScaleX, 1.0, hipScaleX * 0.95);
-      hipsBaseRef.current.scale.set(hipScaleX * 1.02, 1.0, hipScaleX * 0.97);
-      if (pantsPelvisRef.current) {
-        pantsPelvisRef.current.scale.set(hipScaleX, 1.0, hipScaleX * 0.95);
-      }
-    }
-
-    if (leftArmRef.current && rightArmRef.current) {
-      leftArmRef.current.position.x = -0.28 * shoulderScaleX;
-      rightArmRef.current.position.x = 0.28 * shoulderScaleX;
-    }
-
-    if (leftLegRef.current && rightLegRef.current) {
-      leftLegRef.current.scale.set(legScaleX, 1.0, legScaleX);
-      rightLegRef.current.scale.set(legScaleX, 1.0, legScaleX);
-      leftLegRef.current.position.x = -0.13 * (hipScaleX * 0.95);
-      rightLegRef.current.position.x = 0.13 * (hipScaleX * 0.95);
-    }
-
-    if (mannequinGroupRef.current) {
-      mannequinGroupRef.current.scale.set(1.0, heightScale, 1.0);
-    }
     if (externalModelGroupRef.current) {
       externalModelGroupRef.current.scale.set(1.0, heightScale, 1.0);
     }
-
-    // Refresh modular twin
-    updateModularTwin();
-  }, [build, skinToneHex, presentation, baseWearHex, heightScale, outfit, bodyMorphs, hairStyle, hairColorHex, eyewear]);
+  }, [skinToneHex, heightScale, outfit, hairStyle, hairColorHex, eyewear]);
 
   function resetView() {
     rotationRef.current.targetY = 0;
@@ -1425,7 +774,7 @@ export function ThreeMannequinViewer({
       {isLoadingModel && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-card/60 backdrop-blur-xs z-10">
           <Loader2 className="h-6 w-6 animate-spin text-ink" />
-          <span className="mt-2 text-xs font-semibold text-ink">Loading 3D Model…</span>
+          <span className="mt-2 text-xs font-semibold text-ink">Loading 3D Twin…</span>
         </div>
       )}
 
