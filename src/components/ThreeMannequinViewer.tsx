@@ -15,6 +15,12 @@ import {
   BuildType,
   StylePresentation as StylePresentationType,
 } from "@/lib/avatar.types";
+import {
+  captureSkeletonBaselines,
+  applyAvatarTransformations,
+  type SkeletonBaselines,
+  type ModelBones,
+} from "@/lib/avatar-transform";
 
 export type {
   HairstyleType,
@@ -87,11 +93,11 @@ export function ThreeMannequinViewer({
   const loadedModelRef = useRef<THREE.Object3D | null>(null);
   const isFemaleModelRef = useRef<boolean>(true);
 
-  // Armature Transform Cache (Bind Poses)
-  const modelBonesRef = useRef<Record<string, THREE.Bone>>({});
-  const initialBoneQuatsRef = useRef<Record<string, THREE.Quaternion>>({});
-  const initialBonePositionsRef = useRef<Record<string, THREE.Vector3>>({});
-  const initialBoneScalesRef = useRef<Record<string, THREE.Vector3>>({});
+  // Armature Transform Cache (Deterministic Bind Poses)
+  const baselinesRef = useRef<SkeletonBaselines | null>(null);
+  const modelBonesRef = useRef<ModelBones>({});
+  const spine1StanceQuatRef = useRef<THREE.Quaternion | null>(null);
+  const heightPivotGroupRef = useRef<THREE.Group | null>(null);
 
   const modularMeshesRef = useRef<{
     head?: THREE.SkinnedMesh;
@@ -335,10 +341,10 @@ export function ThreeMannequinViewer({
 
       const breathOffset = Math.sin(nowSec * 2.0) * 0.012;
       const activeBones = modelBonesRef.current;
-      const spine1InitQ = initialBoneQuatsRef.current.spine1;
-      if (activeBones.spine1 && spine1InitQ) {
+      const spine1StanceQ = spine1StanceQuatRef.current;
+      if (activeBones.spine1 && spine1StanceQ) {
         const breathQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(breathOffset, 0, 0, "XYZ"));
-        activeBones.spine1.quaternion.copy(spine1InitQ).multiply(breathQ);
+        activeBones.spine1.quaternion.copy(spine1StanceQ).multiply(breathQ);
       }
 
       const modMeshes = modularMeshesRef.current;
@@ -532,67 +538,28 @@ export function ThreeMannequinViewer({
   };
 
   /**
-   * Applies controlled real-time body proportions by transforming the actual
-   * skeleton bones relative to cached bind-pose transforms.
-   * Modifies shoulders, chest, waist, and hips synchronously with clothing.
+   * Applies deterministic real-time body proportions and stance to the skeleton.
+   * Derived purely from the immutable baselines captured upon model load.
    */
-  function applyBodyProportions(morphs?: BodyMorphConfig) {
+  function applyTransformations() {
     const bones = modelBonesRef.current;
-    const initPositions = initialBonePositionsRef.current;
-    const initScales = initialBoneScalesRef.current;
-    if (!bones || Object.keys(bones).length === 0) return;
+    const baselines = baselinesRef.current;
+    if (!bones || !baselines || Object.keys(bones).length === 0) return;
 
-    // Conservative limits to maintain natural silhouette
-    const shoulderMult = Math.max(0.75, Math.min(1.35, morphs?.shoulderWidth ?? 1.0));
-    const waistMult = Math.max(0.75, Math.min(1.35, morphs?.waistScale ?? 1.0));
-    const hipMult = Math.max(0.80, Math.min(1.35, morphs?.hipWidth ?? 1.0));
-    const chestMult = Math.max(0.80, Math.min(1.30, morphs?.chestBust ?? 1.0));
+    const { spine1StanceQuat } = applyAvatarTransformations(
+      bones,
+      baselines,
+      {
+        bodyMorphs,
+        stance,
+        heightScale,
+      },
+      { isFemale: isFemaleModelRef.current }
+    );
+    spine1StanceQuatRef.current = spine1StanceQuat || null;
 
-    // 1. Shoulders: offset LeftShoulder & RightShoulder in X relative to Spine2
-    if (bones.leftshoulder && initPositions.leftshoulder) {
-      bones.leftshoulder.position.x = initPositions.leftshoulder.x * shoulderMult;
-    }
-    if (bones.rightshoulder && initPositions.rightshoulder) {
-      bones.rightshoulder.position.x = initPositions.rightshoulder.x * shoulderMult;
-    }
-
-    // 2. Chest (Spine2): scale in X and Z, counter-scale Neck so head/neck don't stretch
-    if (bones.spine2 && initScales.spine2) {
-      const chestX = initScales.spine2.x * chestMult * (1 + (shoulderMult - 1) * 0.35);
-      const chestZ = initScales.spine2.z * (1 + (chestMult - 1) * 0.8);
-      bones.spine2.scale.set(chestX, initScales.spine2.y, chestZ);
-
-      if (bones.neck && initScales.neck) {
-        bones.neck.scale.set(
-          initScales.neck.x / chestX,
-          initScales.neck.y,
-          initScales.neck.z / chestZ
-        );
-      }
-    }
-
-    // 3. Waist: scale Spine & Spine1 in X and Z
-    if (bones.spine && initScales.spine) {
-      bones.spine.scale.set(
-        initScales.spine.x * waistMult,
-        initScales.spine.y,
-        initScales.spine.z * (1 + (waistMult - 1) * 0.75)
-      );
-    }
-    if (bones.spine1 && initScales.spine1) {
-      bones.spine1.scale.set(
-        initScales.spine1.x * (1 + (waistMult - 1) * 0.8),
-        initScales.spine1.y,
-        initScales.spine1.z * (1 + (waistMult - 1) * 0.6)
-      );
-    }
-
-    // 4. Hips: offset LeftUpLeg & RightUpLeg in X
-    if (bones.leftupleg && initPositions.leftupleg) {
-      bones.leftupleg.position.x = initPositions.leftupleg.x * hipMult;
-    }
-    if (bones.rightupleg && initPositions.rightupleg) {
-      bones.rightupleg.position.x = initPositions.rightupleg.x * hipMult;
+    if (heightPivotGroupRef.current) {
+      heightPivotGroupRef.current.scale.set(1.0, heightScale, 1.0);
     }
   }
 
@@ -612,7 +579,7 @@ export function ThreeMannequinViewer({
     setIsLoadingModel(true);
 
     const targetHeight = 2.24;
-    const targetGroundY = -1.14;
+    const targetGroundY = -1.12;
 
     function applyTransformsAndMaterials(obj: THREE.Object3D) {
       const box = new THREE.Box3().setFromObject(obj);
@@ -622,15 +589,20 @@ export function ThreeMannequinViewer({
         const scale = targetHeight / size.y;
         obj.scale.setScalar(scale);
         box.setFromObject(obj);
-        obj.position.y = targetGroundY - box.min.y;
+        // Anchor model so lowest contact point is at y = 0 inside heightPivotGroup
+        obj.position.y = -box.min.y;
         obj.position.x = 0;
         obj.position.z = 0;
       }
 
-      const boneMap: Record<string, THREE.Bone> = {};
-      const initialQuats: Record<string, THREE.Quaternion> = {};
-      const initialPositions: Record<string, THREE.Vector3> = {};
-      const initialScales: Record<string, THREE.Vector3> = {};
+      const { bones, baselines } = captureSkeletonBaselines(
+        obj,
+        effectiveUrl,
+        targetGroundY,
+        targetHeight
+      );
+      modelBonesRef.current = bones;
+      baselinesRef.current = baselines;
 
       const meshes: {
         head?: THREE.SkinnedMesh;
@@ -645,13 +617,6 @@ export function ThreeMannequinViewer({
       } = { eyes: [] };
 
       obj.traverse((child) => {
-        if ((child as THREE.Bone).isBone) {
-          const raw = child.name.replace("mixamorig:", "").replace("mixamorig", "").replace("_", "").toLowerCase();
-          boneMap[raw] = child as THREE.Bone;
-          initialQuats[raw] = child.quaternion.clone();
-          initialPositions[raw] = child.position.clone();
-          initialScales[raw] = child.scale.clone();
-        }
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.SkinnedMesh;
           mesh.castShadow = true;
@@ -676,10 +641,6 @@ export function ThreeMannequinViewer({
         }
       });
 
-      modelBonesRef.current = boneMap;
-      initialBoneQuatsRef.current = initialQuats;
-      initialBonePositionsRef.current = initialPositions;
-      initialBoneScalesRef.current = initialScales;
       modularMeshesRef.current = meshes;
     }
 
@@ -690,13 +651,21 @@ export function ThreeMannequinViewer({
       (gltf) => {
         if (isCancelled) return;
         applyTransformsAndMaterials(gltf.scene);
+
+        // Ground anchor pivot group (feet pinned to targetGroundY)
+        const heightPivotGroup = new THREE.Group();
+        heightPivotGroup.position.set(0, targetGroundY, 0);
+        heightPivotGroup.scale.set(1.0, heightScale, 1.0);
+        heightPivotGroup.add(gltf.scene);
+        heightPivotGroupRef.current = heightPivotGroup;
+
         extGroup.clear();
-        extGroup.add(gltf.scene);
+        extGroup.add(heightPivotGroup);
         extGroup.visible = true;
         loadedModelRef.current = gltf.scene;
+
         setIsLoadingModel(false);
-        applyFashionStance(stance);
-        applyBodyProportions(bodyMorphs);
+        applyTransformations();
         updateModularTwin();
       },
       undefined,
@@ -712,72 +681,10 @@ export function ThreeMannequinViewer({
     };
   }, [modelType, presentation]);
 
-  function applyFashionStance(activeStance: FashionStanceType) {
-    const bones = modelBonesRef.current;
-    const initQuats = initialBoneQuatsRef.current;
-    if (Object.keys(bones).length > 0) {
-      Object.entries(bones).forEach(([name, b]) => {
-        const initQ = initQuats[name];
-        if (initQ) {
-          b.quaternion.copy(initQ);
-        }
-      });
-
-      function rotateBone(name: string, rx: number, ry: number, rz: number) {
-        const b = bones[name];
-        const initQ = initQuats[name];
-        if (b && initQ) {
-          const deltaQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, "XYZ"));
-          b.quaternion.copy(initQ).multiply(deltaQ);
-        }
-      }
-
-      const baseArmX = isFemaleModelRef.current ? 1.18 : 0.05;
-
-      if (activeStance === "runway_confident") {
-        rotateBone("hips", 0, 0.06, -0.03);
-        rotateBone("spine1", 0, -0.04, 0.02);
-        rotateBone("head", 0.02, -0.06, 0.02);
-        rotateBone("leftarm", baseArmX + 0.06, 0.04, 0);
-        rotateBone("leftforearm", 0.12, 0, 0.18);
-        rotateBone("rightarm", baseArmX + 0.02, -0.04, 0);
-        rotateBone("rightforearm", -0.12, 0, -0.18);
-      } else if (activeStance === "casual_streetwear") {
-        rotateBone("hips", 0, -0.04, 0.02);
-        rotateBone("spine1", 0.02, 0.02, -0.01);
-        rotateBone("head", -0.02, 0.05, 0);
-        rotateBone("leftarm", baseArmX + 0.08, 0, 0);
-        rotateBone("leftforearm", 0.18, 0, 0.22);
-        rotateBone("rightarm", baseArmX + 0.08, 0, 0);
-        rotateBone("rightforearm", -0.18, 0, -0.22);
-      } else if (activeStance === "editorial_chic") {
-        rotateBone("hips", 0, 0.08, -0.04);
-        rotateBone("spine1", 0, -0.06, 0.02);
-        rotateBone("head", 0.04, -0.08, 0.03);
-        rotateBone("leftarm", baseArmX + 0.03, 0.05, 0);
-        rotateBone("leftforearm", 0.22, 0, 0.25);
-        rotateBone("rightarm", baseArmX - 0.04, -0.05, 0);
-        rotateBone("rightforearm", -0.1, 0, -0.15);
-      } else {
-        rotateBone("leftarm", baseArmX, 0, 0);
-        rotateBone("rightarm", baseArmX, 0, 0);
-        rotateBone("leftforearm", 0.1, 0, 0.1);
-        rotateBone("rightforearm", -0.1, 0, -0.1);
-      }
-    }
-  }
-
+  // Re-apply deterministic body transformations whenever bodyMorphs, stance, or heightScale change
   useEffect(() => {
-    applyFashionStance(stance);
-  }, [stance, modelType]);
-
-  // Re-apply body proportions and height whenever bodyMorphs or heightScale changes
-  useEffect(() => {
-    applyBodyProportions(bodyMorphs);
-    if (externalModelGroupRef.current) {
-      externalModelGroupRef.current.scale.set(1.0, heightScale, 1.0);
-    }
-  }, [bodyMorphs, build, heightScale]);
+    applyTransformations();
+  }, [bodyMorphs, stance, heightScale, build]);
 
   useEffect(() => {
     updateModularTwin();

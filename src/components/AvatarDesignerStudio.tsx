@@ -16,6 +16,10 @@ import {
   BodyFrameType,
   mapToStandardPreset,
 } from "@/lib/avatar.types";
+import {
+  calculateEffectiveMultipliers,
+  PRESET_BASE_MULTIPLIERS,
+} from "@/lib/avatar-transform";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -299,16 +303,20 @@ export function AvatarDesignerStudio({
     setStance(prev.stance);
   };
 
-  // Convert heightCm to heightScale (170cm = 1.0)
-  const heightScale = Math.max(0.88, Math.min(1.12, heightCm / 170));
-
-  // Compute active body morphs based on bodyFrame and fine-tuned sliders
+  // Deterministic body multipliers calculated from preset and sliders
   const currentFrameObj = BODY_FRAMES.find((f) => f.id === bodyFrame) || BODY_FRAMES[1];
+  const effective = calculateEffectiveMultipliers({
+    bodyFrame,
+    shoulderPct,
+    waistPct,
+    heightCm,
+  });
+  const heightScale = effective.heightScale;
   const activeMorphs: BodyMorphConfig = {
-    shoulderWidth: currentFrameObj.morphs.shoulderWidth * (1 + (shoulderPct - 50) / 100),
-    waistScale: currentFrameObj.morphs.waistScale * (1 + (waistPct - 50) / 100),
-    hipWidth: currentFrameObj.morphs.hipWidth,
-    chestBust: currentFrameObj.morphs.chestBust * (1 + (shoulderPct - 50) / 150),
+    shoulderWidth: effective.shoulderWidth,
+    waistScale: effective.waistScale,
+    hipWidth: effective.hipWidth,
+    chestBust: effective.chestBust,
   };
 
   // Build complete AvatarConfig payload
@@ -373,7 +381,7 @@ export function AvatarDesignerStudio({
     setBodyFrame("athletic");
     setHeightCm(165);
     setShoulderPct(50);
-    setWaistPct(48);
+    setWaistPct(50);
     setSkinToneHex("#D59D7B");
     setHairStyle("wavy_curtains");
     setEyewear("none");
@@ -572,6 +580,8 @@ export function AvatarDesignerStudio({
                               onClick={() => {
                                 pushHistory();
                                 setBodyFrame(f.id);
+                                setShoulderPct(50);
+                                setWaistPct(50);
                               }}
                               className={cn(
                                 "relative flex flex-col items-center justify-center rounded-2xl border p-2.5 transition-all shadow-2xs",
@@ -603,7 +613,7 @@ export function AvatarDesignerStudio({
                         <input
                           type="range"
                           min={150}
-                          max={190}
+                          max={195}
                           value={heightCm}
                           onChange={(e) => setHeightCm(Number(e.target.value))}
                           className="w-full accent-[#FFE169] h-2 rounded-lg cursor-pointer bg-neutral-200 border border-ink/20"
@@ -611,7 +621,7 @@ export function AvatarDesignerStudio({
                       </div>
                       <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground mt-0.5">
                         <span>150 cm</span>
-                        <span>190 cm</span>
+                        <span>195 cm</span>
                       </div>
                     </div>
 
@@ -1095,6 +1105,8 @@ export function AvatarDesignerStudio({
                         onClick={() => {
                           pushHistory();
                           setBodyFrame(f.id);
+                          setShoulderPct(50);
+                          setWaistPct(50);
                         }}
                         className={cn(
                           "relative flex flex-col items-center justify-center rounded-xl border py-1.5 transition-all shadow-2xs",
