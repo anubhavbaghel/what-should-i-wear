@@ -147,6 +147,48 @@ function StylePage() {
     };
   }, [selectedItems]);
 
+  const threeDOutfit = useMemo(() => {
+    const top = selectedItems.find((i) => i.category === "top" || i.category === "dress");
+    const bottom = selectedItems.find((i) => i.category === "bottom");
+    const outer = selectedItems.find((i) => i.category === "outerwear");
+    const shoes = selectedItems.find((i) => i.category === "shoes");
+
+    let topType: "none" | "tee" | "shirt" | "jacket" = "none";
+    if (outer) topType = "jacket";
+    else if (top) {
+      const sub = ((top as any).subcategory || top.name || "").toLowerCase();
+      if (sub.includes("shirt") || sub.includes("button") || sub.includes("linen")) {
+        topType = "shirt";
+      } else {
+        topType = "tee";
+      }
+    }
+
+    let bottomType: "none" | "trousers" | "wide_chinos" | "shorts" = "none";
+    if (bottom) {
+      const sub = ((bottom as any).subcategory || bottom.name || "").toLowerCase();
+      if (sub.includes("short")) bottomType = "shorts";
+      else if (sub.includes("chino") || sub.includes("wide") || sub.includes("cargo")) bottomType = "wide_chinos";
+      else bottomType = "trousers";
+    }
+
+    let shoesType: "none" | "sneakers" | "loafers" = "none";
+    if (shoes) {
+      const sub = ((shoes as any).subcategory || shoes.name || "").toLowerCase();
+      if (sub.includes("loafer") || sub.includes("boot") || sub.includes("formal")) shoesType = "loafers";
+      else shoesType = "sneakers";
+    }
+
+    return {
+      topType,
+      topColor: outer?.primary_color || top?.primary_color || "#1B1B1D",
+      bottomType,
+      bottomColor: bottom?.primary_color || "#1E1E22",
+      shoesType,
+      shoesColor: shoes?.primary_color || "#FFFFFF",
+    };
+  }, [selectedItems]);
+
   function toggle(id: string) {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   }
@@ -246,6 +288,7 @@ function StylePage() {
               hairColorHex={avatarConfig.hairColorHex}
               eyewear={avatarConfig.eyewear as any}
               presentation={presentation}
+              outfit={threeDOutfit}
               className="h-72 w-full"
             />
           </div>

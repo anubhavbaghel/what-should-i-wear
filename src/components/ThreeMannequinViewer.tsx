@@ -73,6 +73,7 @@ export interface BodyMorphConfig {
 }
 
 export type ModelPresetType = "xbot" | "michelle" | "soldier" | "base" | "procedural" | string;
+export type CameraFocusTarget = "full" | "face" | "torso" | "legs" | "shoes";
 
 export interface ThreeMannequinViewerProps {
   modelType?: ModelPresetType;
@@ -88,6 +89,7 @@ export interface ThreeMannequinViewerProps {
   className?: string;
   autoRotateDefault?: boolean;
   outfit?: MannequinOutfitConfig;
+  cameraFocus?: CameraFocusTarget;
 }
 
 export function ThreeMannequinViewer({
@@ -104,6 +106,7 @@ export function ThreeMannequinViewer({
   className,
   autoRotateDefault = false,
   outfit,
+  cameraFocus = "full",
 }: ThreeMannequinViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoRotate, setAutoRotate] = useState(autoRotateDefault);
@@ -170,13 +173,52 @@ export function ThreeMannequinViewer({
   const leftLoaferRef = useRef<THREE.Mesh | null>(null);
   const rightLoaferRef = useRef<THREE.Mesh | null>(null);
 
-  // Orbit & Zoom state
+  // Orbit, Camera Target & Zoom state (Snapchat dynamic auto-framing)
   const rotationRef = useRef({ y: 0, targetY: 0, pitch: 0.1, targetPitch: 0.1 });
-  const zoomRef = useRef({ distance: 4.0, targetDistance: 4.0, min: 2.2, max: 6.2 });
+  const zoomRef = useRef({ distance: 4.0, targetDistance: 4.0, min: 2.0, max: 6.2 });
+  const cameraTargetRef = useRef<{
+    y: number;
+    targetY: number;
+    distance: number;
+    targetDistance: number;
+  }>({
+    y: 0.05,
+    targetY: 0.05,
+    distance: 4.0,
+    targetDistance: 4.0,
+  });
   const [zoomLevel, setZoomLevel] = useState(1.0); // 1.0 is default
   const isPointerDownRef = useRef(false);
   const pointerStartRef = useRef({ x: 0, y: 0 });
   const pinchStartDistRef = useRef<number | null>(null);
+
+  // Dynamic Camera Auto-Framing when category focus changes (Snapchat Bitmoji feature)
+  useEffect(() => {
+    const target = cameraTargetRef.current;
+    switch (cameraFocus) {
+      case "face":
+        target.targetY = 0.85;
+        target.targetDistance = 2.05;
+        break;
+      case "torso":
+        target.targetY = 0.25;
+        target.targetDistance = 2.75;
+        break;
+      case "legs":
+        target.targetY = -0.35;
+        target.targetDistance = 3.0;
+        break;
+      case "shoes":
+        target.targetY = -0.92;
+        target.targetDistance = 2.15;
+        break;
+      case "full":
+      default:
+        target.targetY = 0.05;
+        target.targetDistance = 4.0;
+        break;
+    }
+  }, [cameraFocus]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -208,43 +250,73 @@ export function ThreeMannequinViewer({
     rendererRef.current = renderer;
     container.appendChild(renderer.domElement);
 
-    // 4. Studio Lighting
-    const ambientLight = new THREE.AmbientLight(0xfff8f2, 0.7);
+    // 4. Studio Lighting - Snapchat / High-Fashion 3-Point Setup with Rim Backlight
+    const ambientLight = new THREE.AmbientLight(0xfff7f0, 0.8);
     scene.add(ambientLight);
 
-    // Key Light
-    const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
-    keyLight.position.set(2.5, 4.5, 3.5);
+    // Key Light: Warm directional light (front-left, 45 degrees up)
+    const keyLight = new THREE.DirectionalLight(0xffffff, 1.45);
+    keyLight.position.set(2.8, 4.2, 3.6);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 1024;
     keyLight.shadow.mapSize.height = 1024;
     keyLight.shadow.camera.near = 0.5;
     keyLight.shadow.camera.far = 10;
-    keyLight.shadow.bias = -0.001;
+    keyLight.shadow.bias = -0.0008;
     scene.add(keyLight);
 
-    // Fill Light
-    const fillLight = new THREE.DirectionalLight(0xe8f0ff, 0.6);
-    fillLight.position.set(-3, 2, 2.5);
+    // Fill Light: Soft cool light to illuminate shadow side
+    const fillLight = new THREE.DirectionalLight(0xe4edff, 0.7);
+    fillLight.position.set(-3.2, 2.4, 2.5);
     scene.add(fillLight);
 
-    // Rim Light (back-light for silhouette definition)
-    const rimLight = new THREE.DirectionalLight(0xffecd6, 1.2);
-    rimLight.position.set(0, 3.5, -3.5);
+    // Rim / Kick Light: High-angle back-light for sharp silhouette definition (Snapchat signature)
+    const rimLight = new THREE.DirectionalLight(0xffedd5, 1.6);
+    rimLight.position.set(0, 3.8, -3.6);
     scene.add(rimLight);
 
-    // 5. Studio Pedestal / Turntable Platform
+    // 5. Studio Pedestal / Turntable Platform & Contact Shadow
     const pedestalGroup = new THREE.Group();
     const pedestalGeo = new THREE.CylinderGeometry(1.2, 1.28, 0.08, 48);
     const pedestalMat = new THREE.MeshStandardMaterial({
-      color: 0xefede8,
-      roughness: 0.35,
-      metalness: 0.1,
+      color: 0xedebe6,
+      roughness: 0.38,
+      metalness: 0.08,
     });
     const pedestalMesh = new THREE.Mesh(pedestalGeo, pedestalMat);
     pedestalMesh.position.y = -1.14;
     pedestalMesh.receiveShadow = true;
     pedestalGroup.add(pedestalMesh);
+
+    // Soft blurred ground contact shadow disc (Snapchat style)
+    try {
+      const shadowCanvas = document.createElement("canvas");
+      shadowCanvas.width = 128;
+      shadowCanvas.height = 128;
+      const sCtx = shadowCanvas.getContext("2d");
+      if (sCtx) {
+        const grad = sCtx.createRadialGradient(64, 64, 6, 64, 64, 60);
+        grad.addColorStop(0, "rgba(22, 22, 26, 0.55)");
+        grad.addColorStop(0.35, "rgba(22, 22, 26, 0.28)");
+        grad.addColorStop(0.7, "rgba(22, 22, 26, 0.08)");
+        grad.addColorStop(1, "rgba(22, 22, 26, 0)");
+        sCtx.fillStyle = grad;
+        sCtx.fillRect(0, 0, 128, 128);
+      }
+      const shadowTex = new THREE.CanvasTexture(shadowCanvas);
+      const shadowPlaneGeo = new THREE.PlaneGeometry(1.5, 1.5);
+      const shadowPlaneMat = new THREE.MeshBasicMaterial({
+        map: shadowTex,
+        transparent: true,
+        depthWrite: false,
+      });
+      const shadowPlane = new THREE.Mesh(shadowPlaneGeo, shadowPlaneMat);
+      shadowPlane.rotation.x = -Math.PI / 2;
+      shadowPlane.position.y = -1.096;
+      pedestalGroup.add(shadowPlane);
+    } catch {
+      // Fallback if canvas is unavailable
+    }
 
     // Platform chrome trim rim
     const rimGeo = new THREE.TorusGeometry(1.24, 0.015, 16, 64);
@@ -631,11 +703,15 @@ export function ThreeMannequinViewer({
       rot.y += (rot.targetY - rot.y) * 0.12;
       rot.pitch += (rot.targetPitch - rot.pitch) * 0.12;
 
-      // Smooth zoom damping
-      const z = zoomRef.current;
-      z.distance += (z.targetDistance - z.distance) * 0.14;
+      // Smooth camera position & framing damping (Snapchat dynamic auto-framing)
+      const camTarget = cameraTargetRef.current;
+      camTarget.y += (camTarget.targetY - camTarget.y) * 0.1;
+      camTarget.distance += (camTarget.targetDistance - camTarget.distance) * 0.12;
+
       if (camera) {
-        camera.position.z = z.distance;
+        camera.position.y = camTarget.y + Math.sin(rot.pitch) * camTarget.distance;
+        camera.position.z = Math.cos(rot.pitch) * camTarget.distance;
+        camera.lookAt(0, camTarget.y, 0);
       }
 
       if (mannequinGroupRef.current) {
@@ -693,10 +769,12 @@ export function ThreeMannequinViewer({
 
         if (pinchStartDistRef.current !== null) {
           const factor = pinchStartDistRef.current / currentDist;
-          zoomRef.current.targetDistance = Math.max(
+          const newDist = Math.max(
             zoomRef.current.min,
-            Math.min(zoomRef.current.max, zoomRef.current.targetDistance * (factor > 1 ? 1.02 : 0.98))
+            Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance * (factor > 1 ? 1.02 : 0.98))
           );
+          cameraTargetRef.current.targetDistance = newDist;
+          zoomRef.current.targetDistance = newDist;
         }
         pinchStartDistRef.current = currentDist;
         return;
@@ -727,10 +805,12 @@ export function ThreeMannequinViewer({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const zoomDelta = e.deltaY * 0.003;
-      zoomRef.current.targetDistance = Math.max(
+      const newDist = Math.max(
         zoomRef.current.min,
-        Math.min(zoomRef.current.max, zoomRef.current.targetDistance + zoomDelta)
+        Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance + zoomDelta)
       );
+      cameraTargetRef.current.targetDistance = newDist;
+      zoomRef.current.targetDistance = newDist;
     };
 
     const el = renderer.domElement;
@@ -802,7 +882,17 @@ export function ThreeMannequinViewer({
           const mesh = child as THREE.Mesh;
           mesh.castShadow = true;
           mesh.receiveShadow = true;
-          if (mesh.name === "Beta_Surface" && skinMat) {
+          const nameLower = mesh.name.toLowerCase();
+          if (
+            (mesh.name === "Beta_Surface" ||
+              mesh.name === "Ch03" ||
+              nameLower.includes("surface") ||
+              nameLower.includes("body") ||
+              nameLower.includes("skin") ||
+              nameLower === "mesh" ||
+              nameLower === "mesh.001") &&
+            skinMat
+          ) {
             mesh.material = skinMat;
           } else if (mesh.name === "Beta_Joints") {
             mesh.material = new THREE.MeshStandardMaterial({
@@ -960,13 +1050,24 @@ export function ThreeMannequinViewer({
     skinMaterialRef.current.color.set(skinToneHex);
     baseWearMaterialRef.current.color.set(baseWearHex);
 
-    // Update external model skin tone if active
+    // Update external model skin tone if active (Michelle, Avatar-Base, X-Bot)
     if (loadedModelRef.current) {
       loadedModelRef.current.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh && child.name === "Beta_Surface") {
+        if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
-          if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).color) {
-            (mesh.material as THREE.MeshStandardMaterial).color.set(skinToneHex);
+          const nameLower = mesh.name.toLowerCase();
+          if (
+            mesh.name === "Beta_Surface" ||
+            mesh.name === "Ch03" ||
+            nameLower.includes("surface") ||
+            nameLower.includes("body") ||
+            nameLower.includes("skin") ||
+            nameLower === "mesh" ||
+            nameLower === "mesh.001"
+          ) {
+            if (mesh.material && (mesh.material as THREE.MeshStandardMaterial).color) {
+              (mesh.material as THREE.MeshStandardMaterial).color.set(skinToneHex);
+            }
           }
         }
       });
@@ -998,15 +1099,20 @@ export function ThreeMannequinViewer({
     if (leftLongForeRef.current) leftLongForeRef.current.visible = hasLongSleeves;
     if (rightLongForeRef.current) rightLongForeRef.current.visible = hasLongSleeves;
 
+    // Occlusion Culling: Hide underlying body parts to eliminate clipping / z-fighting (Snapchat standard)
+    if (torsoRef.current) {
+      torsoRef.current.visible = topType === "none";
+    }
     if (chestBaseRef.current) {
       chestBaseRef.current.visible = topType === "none" || topType === "jacket";
     }
 
-    // Bottom Garments Visibility
+    // Bottom Garments Visibility & Occlusion Culling
     const bottomType = outfit?.bottomType || "none";
     const hasPants = bottomType !== "none";
     if (pantsPelvisRef.current) pantsPelvisRef.current.visible = hasPants;
     if (hipsBaseRef.current) hipsBaseRef.current.visible = !hasPants;
+    if (hipsRef.current) hipsRef.current.visible = !hasPants;
 
     const isStraight = bottomType === "trousers";
     if (leftStraightThighRef.current) leftStraightThighRef.current.visible = isStraight;
