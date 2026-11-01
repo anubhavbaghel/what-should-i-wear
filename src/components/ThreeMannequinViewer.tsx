@@ -128,6 +128,7 @@ export function ThreeMannequinViewer({
   const externalModelGroupRef = useRef<THREE.Group | null>(null);
   const loadedModelRef = useRef<THREE.Object3D | null>(null);
   const modelBonesRef = useRef<Record<string, THREE.Bone>>({});
+  const initialBoneQuatsRef = useRef<Record<string, THREE.Quaternion>>({});
   const modularMeshesRef = useRef<{
     head?: THREE.SkinnedMesh;
     body?: THREE.SkinnedMesh;
@@ -756,8 +757,10 @@ export function ThreeMannequinViewer({
       // Subtle natural breathing cycle on spine
       const breathOffset = Math.sin(nowSec * 2.0) * 0.012;
       const activeBones = modelBonesRef.current;
-      if (activeBones.spine1) {
-        activeBones.spine1.rotation.x = breathOffset;
+      const spine1InitQ = initialBoneQuatsRef.current.spine1;
+      if (activeBones.spine1 && spine1InitQ) {
+        const breathQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(breathOffset, 0, 0, "XYZ"));
+        activeBones.spine1.quaternion.copy(spine1InitQ).multiply(breathQ);
       }
 
       const modMeshes = modularMeshesRef.current;
@@ -1022,6 +1025,7 @@ export function ThreeMannequinViewer({
       }
 
       const boneMap: Record<string, THREE.Bone> = {};
+      const initialQuats: Record<string, THREE.Quaternion> = {};
       const meshes: {
         head?: THREE.SkinnedMesh;
         body?: THREE.SkinnedMesh;
@@ -1038,6 +1042,7 @@ export function ThreeMannequinViewer({
         if ((child as THREE.Bone).isBone) {
           const raw = child.name.replace("mixamorig:", "").replace("mixamorig", "").replace("_", "").toLowerCase();
           boneMap[raw] = child as THREE.Bone;
+          initialQuats[raw] = child.quaternion.clone();
         }
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.SkinnedMesh;
@@ -1065,6 +1070,7 @@ export function ThreeMannequinViewer({
       });
 
       modelBonesRef.current = boneMap;
+      initialBoneQuatsRef.current = initialQuats;
       modularMeshesRef.current = meshes;
     }
 
@@ -1101,38 +1107,53 @@ export function ThreeMannequinViewer({
   // Apply fashion model stances & postures (Snapchat/Mixamo pose library)
   function applyFashionStance(activeStance: FashionStanceType) {
     const bones = modelBonesRef.current;
+    const initQuats = initialBoneQuatsRef.current;
     if (Object.keys(bones).length > 0) {
-      // Reset bones first
-      Object.values(bones).forEach((b) => b.rotation.set(0, 0, 0));
+      // 1. Restore all bones to their natural glTF bind quaternion (prevents leg inversions!)
+      Object.entries(bones).forEach(([name, b]) => {
+        const initQ = initQuats[name];
+        if (initQ) {
+          b.quaternion.copy(initQ);
+        }
+      });
+
+      function rotateBone(name: string, rx: number, ry: number, rz: number) {
+        const b = bones[name];
+        const initQ = initQuats[name];
+        if (b && initQ) {
+          const deltaQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, "XYZ"));
+          b.quaternion.copy(initQ).multiply(deltaQ);
+        }
+      }
 
       if (activeStance === "runway_confident") {
-        if (bones.hips) bones.hips.rotation.set(0, 0.1, -0.05);
-        if (bones.spine || bones.spine1) (bones.spine1 || bones.spine).rotation.set(0, -0.08, 0.04);
-        if (bones.leftarm) bones.leftarm.rotation.set(0.18, -0.12, -0.9);
-        if (bones.leftforearm) bones.leftforearm.rotation.set(0, 0.35, 0);
-        if (bones.rightarm) bones.rightarm.rotation.set(-0.1, 0.15, 0.95);
-        if (bones.rightforearm) bones.rightforearm.rotation.set(-0.25, 0, 0);
-        if (bones.head) bones.head.rotation.set(0.02, -0.08, 0.03);
+        rotateBone("hips", 0, 0.08, -0.04);
+        rotateBone("spine1", 0, -0.06, 0.03);
+        rotateBone("leftarm", 0.15, -0.1, -1.05);
+        rotateBone("leftforearm", 0, 0.35, 0);
+        rotateBone("rightarm", -0.1, 0.12, 1.1);
+        rotateBone("rightforearm", -0.25, 0, 0);
+        rotateBone("head", 0.02, -0.08, 0.03);
       } else if (activeStance === "casual_streetwear") {
-        if (bones.hips) bones.hips.rotation.set(0, -0.06, 0.04);
-        if (bones.spine || bones.spine1) (bones.spine1 || bones.spine).rotation.set(0.04, 0.03, -0.02);
-        if (bones.leftarm) bones.leftarm.rotation.set(0.3, -0.15, -0.55);
-        if (bones.leftforearm) bones.leftforearm.rotation.set(-0.55, 0.1, 0);
-        if (bones.rightarm) bones.rightarm.rotation.set(0.3, 0.15, 0.6);
-        if (bones.rightforearm) bones.rightforearm.rotation.set(-0.55, -0.1, 0);
-        if (bones.head) bones.head.rotation.set(-0.03, 0.06, 0);
+        rotateBone("hips", 0, -0.05, 0.03);
+        rotateBone("spine1", 0.04, 0.03, -0.02);
+        rotateBone("leftarm", 0.25, -0.12, -0.85);
+        rotateBone("leftforearm", -0.45, 0.1, 0);
+        rotateBone("rightarm", 0.25, 0.12, 0.85);
+        rotateBone("rightforearm", -0.45, -0.1, 0);
+        rotateBone("head", -0.03, 0.06, 0);
       } else if (activeStance === "editorial_chic") {
-        if (bones.hips) bones.hips.rotation.set(0, 0.15, -0.06);
-        if (bones.spine1 || bones.spine) (bones.spine1 || bones.spine).rotation.set(0, -0.1, 0.03);
-        if (bones.neck) bones.neck.rotation.set(-0.04, 0, 0);
-        if (bones.head) bones.head.rotation.set(0.06, -0.12, 0.04);
-        if (bones.leftarm) bones.leftarm.rotation.set(0.05, 0.2, -1.2);
-        if (bones.rightarm) bones.rightarm.rotation.set(-0.15, 0.1, 0.8);
-        if (bones.rightforearm) bones.rightforearm.rotation.set(0, 0, 0.35);
+        rotateBone("hips", 0, 0.12, -0.05);
+        rotateBone("spine1", 0, -0.08, 0.03);
+        rotateBone("neck", -0.04, 0, 0);
+        rotateBone("head", 0.06, -0.12, 0.04);
+        rotateBone("leftarm", 0.05, 0.15, -1.18);
+        rotateBone("rightarm", -0.12, 0.1, 0.95);
+        rotateBone("rightforearm", 0, 0, 0.35);
       } else {
-        // neutral_pose: Natural A-pose
-        if (bones.leftarm) bones.leftarm.rotation.set(0, 0, -1.1);
-        if (bones.rightarm) bones.rightarm.rotation.set(0, 0, 1.1);
+        // neutral_pose: Natural relaxed standing A-pose
+        rotateBone("leftarm", 0, 0, -1.15);
+        rotateBone("rightarm", 0, 0, 1.15);
       }
     }
 
