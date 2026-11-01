@@ -73,6 +73,15 @@ function AuthenticatedLayout() {
     window.location.href = "/login";
   }
 
+  // Full-screen dedicated window for onboarding with zero outside scroll
+  if (pathname === "/onboarding") {
+    return (
+      <div className="h-dvh w-screen overflow-hidden bg-[#FAF0E6]">
+        <Outlet />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {isDemo && (

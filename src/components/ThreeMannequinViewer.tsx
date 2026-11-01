@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
-import { RotateCw, RefreshCw, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
+import { RotateCw, RefreshCw, Plus, Minus, Undo2, Loader2 } from "lucide-react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { cn } from "@/lib/utils";
 import type { HairstyleType, EyewearType } from "./HairstyleGeometries";
@@ -31,7 +31,7 @@ export interface BodyMorphConfig {
 }
 
 export type ModelPresetType = "/models/female-twin.glb" | "/models/male-twin.glb" | "female" | "male" | string;
-export type CameraFocusTarget = "full" | "face" | "torso" | "legs" | "shoes";
+export type CameraFocusTarget = "full" | "face" | "torso" | "shoes";
 export type FashionStanceType =
   | "runway_confident"
   | "casual_streetwear"
@@ -54,6 +54,9 @@ export interface ThreeMannequinViewerProps {
   outfit?: MannequinOutfitConfig;
   cameraFocus?: CameraFocusTarget;
   stance?: FashionStanceType;
+  onUndo?: () => void;
+  onFocusChange?: (focus: CameraFocusTarget) => void;
+  showFocusTabs?: boolean;
 }
 
 export function ThreeMannequinViewer({
@@ -72,11 +75,15 @@ export function ThreeMannequinViewer({
   outfit,
   cameraFocus = "full",
   stance = "runway_confident",
+  onUndo,
+  onFocusChange,
+  showFocusTabs = true,
 }: ThreeMannequinViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoRotate, setAutoRotate] = useState(autoRotateDefault);
   const [isInteracting, setIsInteracting] = useState(false);
   const [isLoadingModel, setIsLoadingModel] = useState(false);
+  const [activeFocus, setActiveFocus] = useState<CameraFocusTarget>(cameraFocus);
 
   // References for Three.js instance
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -118,20 +125,20 @@ export function ThreeMannequinViewer({
   const pointerStartRef = useRef({ x: 0, y: 0 });
   const pinchStartDistRef = useRef<number | null>(null);
 
-  // Dynamic Camera Auto-Framing when category focus changes (Snapchat Bitmoji feature)
+  useEffect(() => {
+    setActiveFocus(cameraFocus);
+  }, [cameraFocus]);
+
+  // Dynamic Camera Auto-Framing when category focus changes
   useEffect(() => {
     const target = cameraTargetRef.current;
-    switch (cameraFocus) {
+    switch (activeFocus) {
       case "face":
         target.targetY = 0.85;
         target.targetDistance = 2.4;
         break;
       case "torso":
         target.targetY = 0.35;
-        target.targetDistance = 3.2;
-        break;
-      case "legs":
-        target.targetY = -0.35;
         target.targetDistance = 3.2;
         break;
       case "shoes":
@@ -144,7 +151,7 @@ export function ThreeMannequinViewer({
         target.targetDistance = 4.0;
         break;
     }
-  }, [cameraFocus]);
+  }, [activeFocus]);
 
   // 3D Scene Initialization
   useEffect(() => {
@@ -175,7 +182,6 @@ export function ThreeMannequinViewer({
     renderer.toneMappingExposure = 1.05;
     rendererRef.current = renderer;
 
-    // Empty container before appending
     while (container.firstChild) {
       container.removeChild(container.firstChild);
     }
@@ -263,7 +269,7 @@ export function ThreeMannequinViewer({
       shadowPlane.position.y = -1.096;
       pedestalGroup.add(shadowPlane);
     } catch {
-      // Fallback if canvas is unavailable
+      // Fallback
     }
 
     // Platform chrome trim rim
@@ -280,7 +286,7 @@ export function ThreeMannequinViewer({
 
     scene.add(pedestalGroup);
 
-    // External 3D Model Group (Twin Models)
+    // External 3D Model Group
     const externalModelGroup = new THREE.Group();
     externalModelGroupRef.current = externalModelGroup;
     scene.add(externalModelGroup);
@@ -296,16 +302,13 @@ export function ThreeMannequinViewer({
 
       const rot = rotationRef.current;
 
-      // Auto-rotation when enabled and user not dragging
       if (autoRotate && !isPointerDownRef.current) {
         rot.targetY += delta * 0.6;
       }
 
-      // Smooth lerp damping towards target
       rot.y += (rot.targetY - rot.y) * 0.12;
       rot.pitch += (rot.targetPitch - rot.pitch) * 0.12;
 
-      // Smooth camera position & framing damping (Snapchat dynamic auto-framing)
       const camTarget = cameraTargetRef.current;
       camTarget.y += (camTarget.targetY - camTarget.y) * 0.1;
       camTarget.distance += (camTarget.targetDistance - camTarget.distance) * 0.12;
@@ -321,7 +324,7 @@ export function ThreeMannequinViewer({
         externalModelGroupRef.current.rotation.x = rot.pitch;
       }
 
-      // Natural idle ARKit blinking & expression cycle (Bitmoji Vitality Engine)
+      // Idle ARKit blinking & expression cycle
       const nowSec = now / 1000;
       const blinkPeriod = 3.8;
       const blinkDuration = 0.16;
@@ -331,7 +334,6 @@ export function ThreeMannequinViewer({
         blinkVal = Math.sin((cycleTime / blinkDuration) * Math.PI);
       }
 
-      // Subtle natural breathing cycle on spine
       const breathOffset = Math.sin(nowSec * 2.0) * 0.012;
       const activeBones = modelBonesRef.current;
       const spine1InitQ = initialBoneQuatsRef.current.spine1;
@@ -366,7 +368,6 @@ export function ThreeMannequinViewer({
     };
     animate();
 
-    // Resize observer
     const handleResize = () => {
       if (!container || !renderer || !camera) return;
       const w = container.clientWidth;
@@ -377,7 +378,6 @@ export function ThreeMannequinViewer({
     };
     window.addEventListener("resize", handleResize);
 
-    // Pointer Interaction Handlers (Touch & Mouse Turntable)
     const onPointerDown = (e: MouseEvent | TouchEvent) => {
       isPointerDownRef.current = true;
       setIsInteracting(true);
@@ -425,7 +425,6 @@ export function ThreeMannequinViewer({
       const deltaY = currentY - pointerStartRef.current.y;
       pointerStartRef.current = { x: currentX, y: currentY };
 
-      // Update rotational target
       rotationRef.current.targetY += deltaX * 0.012;
       rotationRef.current.targetPitch = Math.max(
         -0.25,
@@ -439,7 +438,6 @@ export function ThreeMannequinViewer({
       pinchStartDistRef.current = null;
     };
 
-    // Wheel Zoom handler
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const zoomDelta = e.deltaY * 0.003;
@@ -461,7 +459,6 @@ export function ThreeMannequinViewer({
     window.addEventListener("touchend", onPointerUp);
     el.addEventListener("wheel", onWheel, { passive: false });
 
-    // Cleanup on unmount
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       window.removeEventListener("resize", handleResize);
@@ -482,12 +479,10 @@ export function ThreeMannequinViewer({
     };
   }, []);
 
-  // Update modular stylized twin materials & garments
   const updateModularTwin = () => {
     const modMeshes = modularMeshesRef.current;
     if (!modMeshes.head && !modMeshes.body) return;
 
-    // 1. Skin tone
     if (modMeshes.head?.material) {
       const mat = (Array.isArray(modMeshes.head.material) ? modMeshes.head.material[0] : modMeshes.head.material) as THREE.MeshStandardMaterial;
       if (mat && mat.color) mat.color.set(skinToneHex);
@@ -497,7 +492,6 @@ export function ThreeMannequinViewer({
       if (mat && mat.color) mat.color.set(skinToneHex);
     }
 
-    // 2. Hair
     if (modMeshes.hair) {
       modMeshes.hair.visible = hairStyle !== "none";
       if (modMeshes.hair.material) {
@@ -506,12 +500,10 @@ export function ThreeMannequinViewer({
       }
     }
 
-    // 3. Eyewear
     if (modMeshes.glasses) {
       modMeshes.glasses.visible = eyewear !== "none";
     }
 
-    // 4. Tops
     if (modMeshes.top) {
       const isTopVisible = outfit?.topType !== "none";
       modMeshes.top.visible = isTopVisible;
@@ -521,7 +513,6 @@ export function ThreeMannequinViewer({
       }
     }
 
-    // 5. Bottoms
     if (modMeshes.bottom) {
       const isBottomVisible = outfit?.bottomType !== "none";
       modMeshes.bottom.visible = isBottomVisible;
@@ -531,7 +522,6 @@ export function ThreeMannequinViewer({
       }
     }
 
-    // 6. Footwear
     if (modMeshes.footwear) {
       const isShoesVisible = outfit?.shoesType !== "none";
       modMeshes.footwear.visible = isShoesVisible;
@@ -542,12 +532,10 @@ export function ThreeMannequinViewer({
     }
   };
 
-  // Load external 3D model (Stylized Twin Models)
   useEffect(() => {
     const extGroup = externalModelGroupRef.current;
     if (!extGroup) return;
 
-    // Resolve model URL: Only Stylized Female Twin and Stylized Male Twin exist
     const isMale =
       modelType === "male" ||
       modelType === "/models/male-twin.glb" ||
@@ -600,7 +588,6 @@ export function ThreeMannequinViewer({
           mesh.castShadow = true;
           mesh.receiveShadow = true;
 
-          // Clone materials so tinting doesn't bleed across models
           if (Array.isArray(mesh.material)) {
             mesh.material = mesh.material.map((m) => m.clone());
           } else if (mesh.material) {
@@ -653,12 +640,10 @@ export function ThreeMannequinViewer({
     };
   }, [modelType, presentation]);
 
-  // Apply fashion model stances & postures (Mixamo / Ready Player Me compatible armature)
   function applyFashionStance(activeStance: FashionStanceType) {
     const bones = modelBonesRef.current;
     const initQuats = initialBoneQuatsRef.current;
     if (Object.keys(bones).length > 0) {
-      // 1. Restore all bones to their natural glTF bind quaternion (prevents leg inversions!)
       Object.entries(bones).forEach(([name, b]) => {
         const initQ = initQuats[name];
         if (initQ) {
@@ -675,8 +660,6 @@ export function ThreeMannequinViewer({
         }
       }
 
-      // Base arm X offset: Female bind is horizontal T-pose (+1.18 rad brings arms down beside hips);
-      // Male bind is already a relaxed standing A-pose (+0.05 rad keeps arms perfectly natural).
       const baseArmX = isFemaleModelRef.current ? 1.18 : 0.05;
 
       if (activeStance === "runway_confident") {
@@ -704,7 +687,6 @@ export function ThreeMannequinViewer({
         rotateBone("rightarm", baseArmX - 0.04, -0.05, 0);
         rotateBone("rightforearm", -0.1, 0, -0.15);
       } else {
-        // neutral_pose: Natural standing A-pose beside hips
         rotateBone("leftarm", baseArmX, 0, 0);
         rotateBone("rightarm", baseArmX, 0, 0);
         rotateBone("leftforearm", 0.1, 0, 0.1);
@@ -717,7 +699,6 @@ export function ThreeMannequinViewer({
     applyFashionStance(stance);
   }, [stance, modelType]);
 
-  // Update materials, proportions and height when styling or outfit changes
   useEffect(() => {
     updateModularTwin();
     if (externalModelGroupRef.current) {
@@ -745,105 +726,102 @@ export function ThreeMannequinViewer({
     );
   }
 
-  function snapSide(direction: "front" | "back" | "left" | "right") {
-    const map = {
-      front: 0,
-      right: Math.PI / 2,
-      back: Math.PI,
-      left: -Math.PI / 2,
-    };
-    rotationRef.current.targetY = map[direction];
-    rotationRef.current.targetPitch = 0.05;
-  }
-
   return (
-    <div className={cn("relative w-full select-none overflow-hidden rounded-3xl border-[1.5px] border-ink bg-[#FFFDF9] shadow-sm", className)}>
+    <div className={cn("relative w-full h-full min-h-[300px] select-none overflow-hidden rounded-3xl border-2 border-ink bg-[#FFFDF9] shadow-xs", className)}>
       {/* Three.js Canvas Container */}
       <div
         ref={containerRef}
-        className="w-full h-80 sm:h-96 cursor-grab active:cursor-grabbing flex items-center justify-center touch-none"
+        className="w-full h-full cursor-grab active:cursor-grabbing flex items-center justify-center touch-none"
       />
 
-      {/* Floating Viewport Overlay Badge */}
-      <div className="pointer-events-none absolute top-3 left-3 flex items-center gap-1.5 rounded-full border-[1.5px] border-ink bg-card px-2.5 py-1 text-[11px] font-bold shadow-sm">
-        <span className="h-2 w-2 rounded-full bg-mint animate-pulse" />
-        <span>Stylized Digital Twin</span>
-      </div>
-
-      {/* Loading Overlay */}
-      {isLoadingModel && (
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center bg-card/60 backdrop-blur-xs z-10">
-          <Loader2 className="h-6 w-6 animate-spin text-ink" />
-          <span className="mt-2 text-xs font-semibold text-ink">Loading 3D Twin…</span>
+      {/* Top Left: Camera Focus Segmented Pills (Full, Face, Torso, Shoes) */}
+      {showFocusTabs && (
+        <div className="absolute top-3 left-3 z-20 flex items-center gap-1 rounded-full border border-ink bg-white/95 p-1 shadow-xs backdrop-blur-xs">
+          {(["full", "face", "torso", "shoes"] as const).map((f) => {
+            const isCurrent = activeFocus === f;
+            return (
+              <button
+                key={f}
+                type="button"
+                onClick={() => {
+                  setActiveFocus(f);
+                  onFocusChange?.(f);
+                }}
+                className={cn(
+                  "rounded-full px-2.5 py-0.5 text-[11px] font-extrabold capitalize transition-all",
+                  isCurrent
+                    ? "bg-ink text-white shadow-xs"
+                    : "text-ink hover:bg-neutral-100"
+                )}
+              >
+                {f}
+              </button>
+            );
+          })}
         </div>
       )}
 
-      {/* Turntable & Reset Controls (Top Right) */}
-      <div className="absolute top-3 right-3 flex items-center gap-1.5">
-        <button
-          type="button"
-          onClick={() => setAutoRotate((v) => !v)}
-          className={cn(
-            "rounded-full border-[1.5px] border-ink bg-card p-1.5 text-xs transition-colors hover:bg-muted active:scale-95 shadow-xs",
-            autoRotate && "bg-sun"
-          )}
-          title={autoRotate ? "Pause Turntable" : "Auto-Rotate Turntable"}
-        >
-          <RotateCw className={cn("h-3.5 w-3.5", autoRotate && "animate-spin")} style={{ animationDuration: "3s" }} />
-        </button>
+      {/* Top Right: Undo ↺ & Reset ↻ Circular Buttons */}
+      <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
+        {onUndo && (
+          <button
+            type="button"
+            onClick={onUndo}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-ink bg-white text-ink shadow-xs transition-transform hover:bg-neutral-100 active:scale-95"
+            title="Undo"
+            aria-label="Undo"
+          >
+            <Undo2 className="h-4 w-4" />
+          </button>
+        )}
         <button
           type="button"
           onClick={resetView}
-          className="rounded-full border-[1.5px] border-ink bg-card p-1.5 text-xs transition-colors hover:bg-muted active:scale-95 shadow-xs"
-          title="Reset to Center & Default Zoom"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-ink bg-white text-ink shadow-xs transition-transform hover:bg-neutral-100 active:scale-95"
+          title="Reset View"
+          aria-label="Reset View"
         >
-          <RefreshCw className="h-3.5 w-3.5" />
+          <RefreshCw className="h-4 w-4" />
         </button>
       </div>
 
-      {/* Vertical Zoom Controls (Floating Right Edge) */}
-      <div className="absolute right-3 top-1/2 -translate-y-1/2 flex flex-col items-center gap-1.5 rounded-2xl border-[1.5px] border-ink bg-card/95 backdrop-blur-xs p-1 shadow-sm">
+      {/* Right Edge: Vertical Zoom Controls (+ / -) */}
+      <div className="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-1 rounded-full border border-ink bg-white/95 p-1 shadow-xs backdrop-blur-xs">
         <button
           type="button"
           onClick={handleZoomIn}
-          className="rounded-xl p-1.5 text-foreground hover:bg-muted active:scale-90 transition-transform"
-          title="Zoom In (or pinch / scroll)"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-ink transition-transform hover:bg-neutral-100 active:scale-90"
+          title="Zoom In"
           aria-label="Zoom in"
         >
-          <ZoomIn className="h-4 w-4" />
+          <Plus className="h-4 w-4 stroke-[2.5]" />
         </button>
         <div className="h-px w-3 bg-ink/20" />
         <button
           type="button"
           onClick={handleZoomOut}
-          className="rounded-xl p-1.5 text-foreground hover:bg-muted active:scale-90 transition-transform"
-          title="Zoom Out (or pinch / scroll)"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-ink transition-transform hover:bg-neutral-100 active:scale-90"
+          title="Zoom Out"
           aria-label="Zoom out"
         >
-          <ZoomOut className="h-4 w-4" />
+          <Minus className="h-4 w-4 stroke-[2.5]" />
         </button>
       </div>
 
-      {/* Quick View Angle Chips (Bottom Center) */}
-      <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-card/90 backdrop-blur-sm border-[1.5px] border-ink px-2 py-1 rounded-full shadow-sm">
-        {(["front", "right", "back", "left"] as const).map((angle) => (
-          <button
-            key={angle}
-            type="button"
-            onClick={() => snapSide(angle)}
-            className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full hover:bg-muted/70 active:scale-95 text-foreground"
-          >
-            {angle}
-          </button>
-        ))}
+      {/* Bottom Center: Drag to Rotate & Scroll to Zoom Pill */}
+      <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2">
+        <div className="flex items-center gap-1.5 rounded-full border border-ink bg-white/95 px-3.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-ink shadow-xs backdrop-blur-xs">
+          <span>✦ DRAG TO ROTATE 360°</span>
+          <span className="text-ink/40">·</span>
+          <span>SCROLL TO ZOOM ✦</span>
+        </div>
       </div>
 
-      {/* Touch Interaction Hint */}
-      {isInteracting && (
-        <div className="pointer-events-none absolute inset-x-0 bottom-12 text-center">
-          <span className="rounded-full bg-ink/75 px-3 py-1 text-[10px] font-medium text-white shadow-md">
-            Drag to rotate · Scroll or pinch to zoom
-          </span>
+      {/* Loading Overlay */}
+      {isLoadingModel && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center bg-card/60 backdrop-blur-xs">
+          <Loader2 className="h-6 w-6 animate-spin text-ink" />
+          <span className="mt-2 text-xs font-bold text-ink">Loading 3D Twin…</span>
         </div>
       )}
     </div>
