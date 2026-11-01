@@ -74,6 +74,11 @@ export interface BodyMorphConfig {
 
 export type ModelPresetType = "xbot" | "michelle" | "soldier" | "base" | "procedural" | string;
 export type CameraFocusTarget = "full" | "face" | "torso" | "legs" | "shoes";
+export type FashionStanceType =
+  | "runway_confident"
+  | "casual_streetwear"
+  | "editorial_chic"
+  | "neutral_pose";
 
 export interface ThreeMannequinViewerProps {
   modelType?: ModelPresetType;
@@ -90,6 +95,7 @@ export interface ThreeMannequinViewerProps {
   autoRotateDefault?: boolean;
   outfit?: MannequinOutfitConfig;
   cameraFocus?: CameraFocusTarget;
+  stance?: FashionStanceType;
 }
 
 export function ThreeMannequinViewer({
@@ -107,6 +113,7 @@ export function ThreeMannequinViewer({
   autoRotateDefault = false,
   outfit,
   cameraFocus = "full",
+  stance = "runway_confident",
 }: ThreeMannequinViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoRotate, setAutoRotate] = useState(autoRotateDefault);
@@ -120,6 +127,7 @@ export function ThreeMannequinViewer({
   const mannequinGroupRef = useRef<THREE.Group | null>(null);
   const externalModelGroupRef = useRef<THREE.Group | null>(null);
   const loadedModelRef = useRef<THREE.Object3D | null>(null);
+  const modelBonesRef = useRef<Record<string, THREE.Bone>>({});
   const headAccessoriesGroupRef = useRef<THREE.Group | null>(null);
   const animFrameRef = useRef<number | null>(null);
 
@@ -877,7 +885,12 @@ export function ThreeMannequinViewer({
         obj.position.x = 0;
         obj.position.z = 0;
       }
+      const boneMap: Record<string, THREE.Bone> = {};
       obj.traverse((child) => {
+        if ((child as THREE.Bone).isBone) {
+          const raw = child.name.replace("mixamorig:", "").replace("mixamorig", "").replace("_", "").toLowerCase();
+          boneMap[raw] = child as THREE.Bone;
+        }
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
           mesh.castShadow = true;
@@ -903,6 +916,7 @@ export function ThreeMannequinViewer({
           }
         }
       });
+      modelBonesRef.current = boneMap;
     }
 
     let isCancelled = false;
@@ -920,6 +934,7 @@ export function ThreeMannequinViewer({
           manGroup.visible = false;
           loadedModelRef.current = fbx;
           setIsLoadingModel(false);
+          applyFashionStance(stance);
         },
         undefined,
         (err) => {
@@ -969,6 +984,8 @@ export function ThreeMannequinViewer({
           manGroup.visible = false;
           loadedModelRef.current = gltf.scene;
           setIsLoadingModel(false);
+          // Re-apply active posture to newly loaded armature
+          applyFashionStance(stance);
         },
         undefined,
         (err) => {
@@ -984,6 +1001,66 @@ export function ThreeMannequinViewer({
       isCancelled = true;
     };
   }, [modelType]);
+
+  // Apply fashion model stances & postures (Snapchat/Mixamo pose library)
+  function applyFashionStance(activeStance: FashionStanceType) {
+    const bones = modelBonesRef.current;
+    if (Object.keys(bones).length > 0) {
+      // Reset bones first
+      Object.values(bones).forEach((b) => b.rotation.set(0, 0, 0));
+
+      if (activeStance === "runway_confident") {
+        if (bones.hips) bones.hips.rotation.set(0, 0.1, -0.05);
+        if (bones.spine || bones.spine1) (bones.spine1 || bones.spine).rotation.set(0, -0.08, 0.04);
+        if (bones.leftarm) bones.leftarm.rotation.set(0.18, -0.12, -0.9);
+        if (bones.leftforearm) bones.leftforearm.rotation.set(0, 0.35, 0);
+        if (bones.rightarm) bones.rightarm.rotation.set(-0.1, 0.15, 0.95);
+        if (bones.rightforearm) bones.rightforearm.rotation.set(-0.25, 0, 0);
+        if (bones.head) bones.head.rotation.set(0.02, -0.08, 0.03);
+      } else if (activeStance === "casual_streetwear") {
+        if (bones.hips) bones.hips.rotation.set(0, -0.06, 0.04);
+        if (bones.spine || bones.spine1) (bones.spine1 || bones.spine).rotation.set(0.04, 0.03, -0.02);
+        if (bones.leftarm) bones.leftarm.rotation.set(0.3, -0.15, -0.55);
+        if (bones.leftforearm) bones.leftforearm.rotation.set(-0.55, 0.1, 0);
+        if (bones.rightarm) bones.rightarm.rotation.set(0.3, 0.15, 0.6);
+        if (bones.rightforearm) bones.rightforearm.rotation.set(-0.55, -0.1, 0);
+        if (bones.head) bones.head.rotation.set(-0.03, 0.06, 0);
+      } else if (activeStance === "editorial_chic") {
+        if (bones.hips) bones.hips.rotation.set(0, 0.15, -0.06);
+        if (bones.spine1 || bones.spine) (bones.spine1 || bones.spine).rotation.set(0, -0.1, 0.03);
+        if (bones.neck) bones.neck.rotation.set(-0.04, 0, 0);
+        if (bones.head) bones.head.rotation.set(0.06, -0.12, 0.04);
+        if (bones.leftarm) bones.leftarm.rotation.set(0.05, 0.2, -1.2);
+        if (bones.rightarm) bones.rightarm.rotation.set(-0.15, 0.1, 0.8);
+        if (bones.rightforearm) bones.rightforearm.rotation.set(0, 0, 0.35);
+      } else {
+        // neutral_pose: Natural A-pose
+        if (bones.leftarm) bones.leftarm.rotation.set(0, 0, -1.1);
+        if (bones.rightarm) bones.rightarm.rotation.set(0, 0, 1.1);
+      }
+    }
+
+    // Procedural mannequin stance
+    if (leftArmRef.current && rightArmRef.current) {
+      if (activeStance === "runway_confident") {
+        leftArmRef.current.rotation.set(0.12, -0.08, -0.15);
+        rightArmRef.current.rotation.set(-0.1, 0.08, 0.2);
+      } else if (activeStance === "casual_streetwear") {
+        leftArmRef.current.rotation.set(0.22, 0, -0.08);
+        rightArmRef.current.rotation.set(0.22, 0, 0.08);
+      } else if (activeStance === "editorial_chic") {
+        leftArmRef.current.rotation.set(0.05, 0.15, -0.22);
+        rightArmRef.current.rotation.set(-0.12, 0, 0.16);
+      } else {
+        leftArmRef.current.rotation.set(0, 0, 0);
+        rightArmRef.current.rotation.set(0, 0, 0);
+      }
+    }
+  }
+
+  useEffect(() => {
+    applyFashionStance(stance);
+  }, [stance, modelType]);
 
   // Rebuild modular head accessories (hairstyles & eyewear) and attach to active avatar head socket
   useEffect(() => {

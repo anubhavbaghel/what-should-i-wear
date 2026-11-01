@@ -11,6 +11,7 @@ import {
   BottomGarmentType,
   ShoesGarmentType,
   CameraFocusTarget,
+  FashionStanceType,
 } from "./ThreeMannequinViewer";
 import { cn } from "@/lib/utils";
 import {
@@ -256,6 +257,13 @@ export const HEIGHTS = [
   { id: "tall", label: "Tall", scale: 1.06 },
 ];
 
+export const FASHION_STANCES: { id: FashionStanceType; label: string; badge: string; desc: string }[] = [
+  { id: "runway_confident", label: "Runway Confident", badge: "✦ Signature", desc: "Weight-shifted S-curve with natural contrapposto" },
+  { id: "casual_streetwear", label: "Casual Streetwear", badge: "Street", desc: "Relaxed slouch posture with hands towards pockets" },
+  { id: "editorial_chic", label: "Editorial Chic", badge: "Lookbook", desc: "Dynamic angular pose with elongated high fashion poise" },
+  { id: "neutral_pose", label: "Natural Rest", badge: "Clean", desc: "Neutral symmetrical A-pose for wardrobe inspection" },
+];
+
 export function AvatarDesignerStudio({
   initialPreset = "neutral_medium",
   initialPresentation = "neutral",
@@ -264,11 +272,12 @@ export function AvatarDesignerStudio({
   initialHairStyle = "wavy_curtains",
   initialHairColorHex = "#18181A",
   initialEyewear = "none",
+  initialStance = "runway_confident",
   onChange,
   onSave,
   className,
   showSaveButton = true,
-}: AvatarDesignerStudioProps) {
+}: AvatarDesignerStudioProps & { initialStance?: FashionStanceType }) {
   // Parse preset
   const [initialBuild, initialSkinGroup] = (initialPreset.split("_") as [BuildType, string]) || [
     "neutral",
@@ -279,6 +288,7 @@ export function AvatarDesignerStudio({
   const [hairStyle, setHairStyle] = useState<HairstyleType>(initialHairStyle);
   const [hairColorHex, setHairColorHex] = useState(initialHairColorHex);
   const [eyewear, setEyewear] = useState<EyewearType>(initialEyewear);
+  const [stance, setStance] = useState<FashionStanceType>(initialStance);
 
   const [build, setBuild] = useState<BuildType>(
     BUILDS.some((b) => b.id === initialBuild) ? initialBuild : "neutral"
@@ -325,6 +335,7 @@ export function AvatarDesignerStudio({
         if (parsed.hairStyle) setHairStyle(parsed.hairStyle);
         if (parsed.hairColorHex) setHairColorHex(parsed.hairColorHex);
         if (parsed.eyewear) setEyewear(parsed.eyewear);
+        if (parsed.stance && FASHION_STANCES.some((s) => s.id === parsed.stance)) setStance(parsed.stance);
         if (parsed.build && BUILDS.some((b) => b.id === parsed.build)) setBuild(parsed.build);
         if (parsed.presentation) setPresentation(parsed.presentation);
         if (parsed.skinToneHex) setSkinToneHex(parsed.skinToneHex);
@@ -356,6 +367,7 @@ export function AvatarDesignerStudio({
       hairStyle,
       hairColorHex,
       eyewear,
+      stance,
       outfit: outfitConfig,
     };
     try {
@@ -378,6 +390,7 @@ export function AvatarDesignerStudio({
     hairStyle,
     hairColorHex,
     eyewear,
+    stance,
     outfitConfig,
     onChange,
   ]);
@@ -422,6 +435,7 @@ export function AvatarDesignerStudio({
       hairStyle,
       hairColorHex,
       eyewear,
+      stance,
       outfit: outfitConfig,
     };
     try {
@@ -517,6 +531,7 @@ export function AvatarDesignerStudio({
           autoRotateDefault={autoRotate}
           outfit={outfitConfig}
           cameraFocus={cameraFocus}
+          stance={stance}
           className="h-[380px] w-full"
         />
 
@@ -1104,6 +1119,41 @@ export function AvatarDesignerStudio({
                     {h.label}
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Attitude & Fashion Stance */}
+            <div>
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                Attitude & Fashion Stance
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                {FASHION_STANCES.map((s) => {
+                  const active = stance === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setStance(s.id)}
+                      className={cn(
+                        "card-pop p-2.5 text-left transition-all active:scale-95 cursor-pointer",
+                        active
+                          ? "border-ink bg-sun shadow-[2px_2px_0px_#1B1B1D]"
+                          : "border-ink/20 bg-card hover:bg-muted/40"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-foreground">{s.label}</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground bg-ink/5 px-2 py-0.5 rounded-full">
+                          {s.badge}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-[10px] text-muted-foreground leading-tight">
+                        {s.desc}
+                      </p>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

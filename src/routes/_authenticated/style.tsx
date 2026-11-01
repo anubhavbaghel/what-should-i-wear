@@ -80,11 +80,13 @@ function StylePage() {
     hairStyle: string;
     hairColorHex: string;
     eyewear: string;
+    stance: string;
   }>({
     modelType: "michelle",
     hairStyle: "wavy_curtains",
     hairColorHex: "#18181A",
     eyewear: "none",
+    stance: "runway_confident",
   });
 
   useEffect(() => {
@@ -97,6 +99,7 @@ function StylePage() {
           hairStyle: parsed.hairStyle || "wavy_curtains",
           hairColorHex: parsed.hairColorHex || "#18181A",
           eyewear: parsed.eyewear || "none",
+          stance: parsed.stance || "runway_confident",
         });
       }
     } catch {
@@ -289,6 +292,7 @@ function StylePage() {
               eyewear={avatarConfig.eyewear as any}
               presentation={presentation}
               outfit={threeDOutfit}
+              stance={avatarConfig.stance as any}
               className="h-72 w-full"
             />
           </div>
