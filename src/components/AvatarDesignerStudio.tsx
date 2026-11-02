@@ -11,15 +11,8 @@ import {
   FashionStanceType,
   BodyMorphConfig,
 } from "./ThreeMannequinViewer";
-import {
-  AvatarConfig,
-  BodyFrameType,
-  mapToStandardPreset,
-} from "@/lib/avatar.types";
-import {
-  calculateEffectiveMultipliers,
-  PRESET_BASE_MULTIPLIERS,
-} from "@/lib/avatar-transform";
+import { AvatarConfig, BodyFrameType, mapToStandardPreset } from "@/lib/avatar.types";
+import { calculateEffectiveMultipliers, PRESET_BASE_MULTIPLIERS } from "@/lib/avatar-transform";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -35,7 +28,7 @@ import {
   Eye,
 } from "lucide-react";
 
-export type StudioTab = "body" | "face" | "hair" | "outfit";
+export type StudioTab = "body" | "face" | "hair" | "outfit" | "avatar";
 export type { BodyFrameType };
 
 export interface AvatarDesignerStudioProps {
@@ -102,19 +95,19 @@ export const BODY_FRAMES: {
     id: "slim",
     label: "Slim",
     build: "slim",
-    morphs: { shoulderWidth: 0.90, waistScale: 0.88, hipWidth: 0.92, chestBust: 0.90 },
+    morphs: { shoulderWidth: 0.9, waistScale: 0.88, hipWidth: 0.92, chestBust: 0.9 },
   },
   {
     id: "athletic",
     label: "Athletic",
     build: "neutral",
-    morphs: { shoulderWidth: 1.15, waistScale: 0.95, hipWidth: 0.98, chestBust: 1.10 },
+    morphs: { shoulderWidth: 1.15, waistScale: 0.95, hipWidth: 0.98, chestBust: 1.1 },
   },
   {
     id: "curvy",
     label: "Curvy",
     build: "curvy",
-    morphs: { shoulderWidth: 1.02, waistScale: 1.05, hipWidth: 1.20, chestBust: 1.15 },
+    morphs: { shoulderWidth: 1.02, waistScale: 1.05, hipWidth: 1.2, chestBust: 1.15 },
   },
   {
     id: "average",
@@ -207,7 +200,10 @@ export function AvatarDesignerStudio({
   // Model & Twin Presentation
   const [modelType, setModelType] = useState<ModelPresetType>(() => {
     if (initialConfig?.modelType) return initialConfig.modelType as ModelPresetType;
-    if (initialModelType && (initialModelType.includes("female") || initialModelType.includes("male"))) {
+    if (
+      initialModelType &&
+      (initialModelType.includes("female") || initialModelType.includes("male"))
+    ) {
       return initialModelType;
     }
     const pres = initialConfig?.presentation || initialPresentation;
@@ -215,7 +211,7 @@ export function AvatarDesignerStudio({
   });
 
   const [presentation, setPresentation] = useState<StylePresentationType>(
-    initialConfig?.presentation || initialPresentation
+    initialConfig?.presentation || initialPresentation,
   );
 
   // Body Frame & Proportions
@@ -240,16 +236,16 @@ export function AvatarDesignerStudio({
 
   // Hair & Face
   const [hairStyle, setHairStyle] = useState<HairstyleType>(
-    (initialConfig?.hairStyle as HairstyleType) || initialHairStyle
+    (initialConfig?.hairStyle as HairstyleType) || initialHairStyle,
   );
   const [hairColorHex, setHairColorHex] = useState<string>(
-    initialConfig?.hairColorHex || initialHairColorHex
+    initialConfig?.hairColorHex || initialHairColorHex,
   );
   const [eyewear, setEyewear] = useState<EyewearType>(
-    (initialConfig?.eyewear as EyewearType) || initialEyewear
+    (initialConfig?.eyewear as EyewearType) || initialEyewear,
   );
   const [stance, setStance] = useState<FashionStanceType>(
-    initialConfig?.stance || "runway_confident"
+    initialConfig?.stance || "runway_confident",
   );
 
   // Outfits
@@ -262,7 +258,7 @@ export function AvatarDesignerStudio({
         bottomColor: "#18181A",
         shoesType: "sneakers",
         shoesColor: "#6B3A5B",
-      }
+      },
   );
 
   // Camera Focus
@@ -436,7 +432,7 @@ export function AvatarDesignerStudio({
                   key={i}
                   className={cn(
                     "h-2.5 w-10 rounded-full border border-ink transition-colors",
-                    i <= currentStep ? "bg-[#FF8096]" : "bg-white"
+                    i <= currentStep ? "bg-[#FF8096]" : "bg-white",
                   )}
                 />
               ))}
@@ -496,7 +492,7 @@ export function AvatarDesignerStudio({
                   "absolute bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-full border border-ink px-3 py-1 text-[10.5px] font-black uppercase tracking-wider shadow-xs backdrop-blur-xs transition-all active:scale-95",
                   isComparingDefault
                     ? "bg-[#FFE169] text-ink border-2"
-                    : "bg-white/95 text-ink hover:bg-neutral-100"
+                    : "bg-white/95 text-ink hover:bg-neutral-100",
                 )}
                 title="Toggle comparison between default base proportions and custom body morphs"
               >
@@ -536,6 +532,7 @@ export function AvatarDesignerStudio({
                 {[
                   { id: "body" as const, label: "Body", icon: User },
                   { id: "face" as const, label: "Face", icon: Smile },
+                  { id: "avatar" as const, label: "Avatar", icon: User },
                   { id: "hair" as const, label: "Hair", icon: Sparkles },
                   { id: "outfit" as const, label: "Outfit", icon: Shirt },
                 ].map((t) => {
@@ -550,7 +547,7 @@ export function AvatarDesignerStudio({
                         "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition-all border border-ink shadow-2xs",
                         isActive
                           ? "bg-[#FFE169] border-2 border-ink shadow-xs scale-102 font-black"
-                          : "bg-white text-ink hover:bg-neutral-50"
+                          : "bg-white text-ink hover:bg-neutral-50",
                       )}
                     >
                       <Icon className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -567,9 +564,7 @@ export function AvatarDesignerStudio({
                   <>
                     {/* 1. Body Frame */}
                     <div>
-                      <span className="block text-xs font-black text-ink mb-2">
-                        Body Frame
-                      </span>
+                      <span className="block text-xs font-black text-ink mb-2">Body Frame</span>
                       <div className="grid grid-cols-4 gap-2">
                         {BODY_FRAMES.map((f) => {
                           const isSelected = bodyFrame === f.id;
@@ -587,7 +582,7 @@ export function AvatarDesignerStudio({
                                 "relative flex flex-col items-center justify-center rounded-2xl border p-2.5 transition-all shadow-2xs",
                                 isSelected
                                   ? "border-2 border-ink bg-[#FFE169] font-black shadow-xs scale-102"
-                                  : "border-ink/40 bg-white hover:border-ink font-semibold"
+                                  : "border-ink/40 bg-white hover:border-ink font-semibold",
                               )}
                             >
                               {isSelected && (
@@ -627,9 +622,7 @@ export function AvatarDesignerStudio({
 
                     {/* 3. Skin Tone Swatches */}
                     <div>
-                      <span className="block text-xs font-black text-ink mb-2">
-                        Skin Tone
-                      </span>
+                      <span className="block text-xs font-black text-ink mb-2">Skin Tone</span>
                       <div className="flex items-center gap-2.5 flex-wrap">
                         {SKIN_TONES.map((s) => {
                           const isSelected = skinToneHex.toLowerCase() === s.hex.toLowerCase();
@@ -643,7 +636,7 @@ export function AvatarDesignerStudio({
                               }}
                               className={cn(
                                 "relative h-8 w-8 rounded-full border-2 border-ink transition-transform active:scale-90 shadow-2xs",
-                                isSelected && "ring-2 ring-[#FFE169] ring-offset-2 scale-110"
+                                isSelected && "ring-2 ring-[#FFE169] ring-offset-2 scale-110",
                               )}
                               style={{ backgroundColor: s.hex }}
                               title={s.label}
@@ -659,9 +652,7 @@ export function AvatarDesignerStudio({
 
                     {/* 4. Proportions */}
                     <div>
-                      <span className="block text-xs font-black text-ink mb-1">
-                        Proportions
-                      </span>
+                      <span className="block text-xs font-black text-ink mb-1">Proportions</span>
                       <div className="space-y-1.5">
                         <div className="flex items-center justify-between text-[11px] font-bold text-ink">
                           <span className="w-28">Shoulder Width</span>
@@ -692,7 +683,7 @@ export function AvatarDesignerStudio({
                   </>
                 )}
 
-                {activeTab === "face" && (
+                {activeTab === "avatar" && (
                   <div className="flex flex-col justify-around h-full space-y-3">
                     <div>
                       <span className="block text-xs font-black text-ink mb-2">
@@ -714,17 +705,23 @@ export function AvatarDesignerStudio({
                                 "flex flex-col items-center justify-center rounded-2xl border p-3 transition-all",
                                 isSelected
                                   ? "border-2 border-ink bg-[#FFE169] font-black shadow-xs"
-                                  : "border-ink/40 bg-white hover:border-ink font-semibold"
+                                  : "border-ink/40 bg-white hover:border-ink font-semibold",
                               )}
                             >
-                              <span className="text-xs font-bold text-muted-foreground">{t.badge}</span>
+                              <span className="text-xs font-bold text-muted-foreground">
+                                {t.badge}
+                              </span>
                               <span className="text-sm font-black mt-0.5">{t.label}</span>
                             </button>
                           );
                         })}
                       </div>
                     </div>
+                  </div>
+                )}
 
+                {activeTab === "face" && (
+                  <div className="flex flex-col justify-around h-full space-y-3">
                     <div>
                       <span className="block text-xs font-black text-ink mb-2">
                         Fashion Runway Posture
@@ -744,7 +741,7 @@ export function AvatarDesignerStudio({
                                 "rounded-xl border px-3 py-2 text-xs transition-all",
                                 isSelected
                                   ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                  : "border-ink/40 bg-white hover:border-ink font-semibold"
+                                  : "border-ink/40 bg-white hover:border-ink font-semibold",
                               )}
                             >
                               {st.label}
@@ -777,7 +774,7 @@ export function AvatarDesignerStudio({
                                 "rounded-xl border px-2.5 py-2 text-[11px] transition-all",
                                 isSelected
                                   ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                  : "border-ink/40 bg-white hover:border-ink font-semibold"
+                                  : "border-ink/40 bg-white hover:border-ink font-semibold",
                               )}
                             >
                               {h.label}
@@ -804,7 +801,7 @@ export function AvatarDesignerStudio({
                               }}
                               className={cn(
                                 "relative h-7 w-7 rounded-full border-2 border-ink shadow-2xs transition-transform active:scale-90",
-                                isSelected && "ring-2 ring-[#FFE169] ring-offset-2 scale-110"
+                                isSelected && "ring-2 ring-[#FFE169] ring-offset-2 scale-110",
                               )}
                               style={{ backgroundColor: c.hex }}
                               title={c.label}
@@ -823,9 +820,7 @@ export function AvatarDesignerStudio({
                 {activeTab === "outfit" && (
                   <div className="flex flex-col justify-around h-full space-y-3">
                     <div>
-                      <span className="block text-xs font-black text-ink mb-1.5">
-                        Top Garment
-                      </span>
+                      <span className="block text-xs font-black text-ink mb-1.5">Top Garment</span>
                       <div className="grid grid-cols-4 gap-1.5">
                         {(["tee", "shirt", "jacket", "none"] as const).map((t) => (
                           <button
@@ -839,7 +834,7 @@ export function AvatarDesignerStudio({
                               "rounded-xl border py-1.5 text-xs capitalize transition-all",
                               outfit.topType === t
                                 ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                : "border-ink/40 bg-white hover:border-ink font-semibold"
+                                : "border-ink/40 bg-white hover:border-ink font-semibold",
                             )}
                           >
                             {t}
@@ -865,7 +860,7 @@ export function AvatarDesignerStudio({
                               "rounded-xl border py-1.5 text-xs capitalize transition-all",
                               outfit.bottomType === b
                                 ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                : "border-ink/40 bg-white hover:border-ink font-semibold"
+                                : "border-ink/40 bg-white hover:border-ink font-semibold",
                             )}
                           >
                             {b.replace("_", " ")}
@@ -891,7 +886,7 @@ export function AvatarDesignerStudio({
                               "flex-1 rounded-xl border py-1.5 text-xs capitalize transition-all",
                               outfit.shoesType === s
                                 ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                : "border-ink/40 bg-white hover:border-ink font-semibold"
+                                : "border-ink/40 bg-white hover:border-ink font-semibold",
                             )}
                           >
                             {s}
@@ -901,13 +896,15 @@ export function AvatarDesignerStudio({
                           type="button"
                           onClick={() => {
                             pushHistory();
-                            setEyewear((prev) => (prev === "none" ? "designer_sunglasses" : "none"));
+                            setEyewear((prev) =>
+                              prev === "none" ? "designer_sunglasses" : "none",
+                            );
                           }}
                           className={cn(
                             "rounded-xl border px-3 py-1.5 text-xs flex items-center gap-1 transition-all",
                             eyewear !== "none"
                               ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                              : "border-ink/40 bg-white hover:border-ink font-semibold"
+                              : "border-ink/40 bg-white hover:border-ink font-semibold",
                           )}
                         >
                           <Glasses className="h-3.5 w-3.5" />
@@ -957,7 +954,7 @@ export function AvatarDesignerStudio({
                   key={i}
                   className={cn(
                     "h-1.5 w-6 rounded-full border border-ink transition-colors",
-                    i <= currentStep ? "bg-[#FF8096]" : "bg-white"
+                    i <= currentStep ? "bg-[#FF8096]" : "bg-white",
                   )}
                 />
               ))}
@@ -1016,7 +1013,7 @@ export function AvatarDesignerStudio({
               "absolute bottom-2 left-2 z-20 flex items-center gap-1 rounded-full border border-ink px-2.5 py-0.5 text-[9.5px] font-black uppercase tracking-wider shadow-xs backdrop-blur-xs transition-all active:scale-95",
               isComparingDefault
                 ? "bg-[#FFE169] text-ink border-2"
-                : "bg-white/95 text-ink hover:bg-neutral-100"
+                : "bg-white/95 text-ink hover:bg-neutral-100",
             )}
             title="Toggle comparison"
           >
@@ -1030,6 +1027,7 @@ export function AvatarDesignerStudio({
           {[
             { id: "body" as const, label: "Body", icon: User },
             { id: "face" as const, label: "Face", icon: Smile },
+            { id: "avatar" as const, label: "Avatar", icon: User },
             { id: "hair" as const, label: "Hair", icon: Sparkles },
             { id: "outfit" as const, label: "Outfit", icon: Shirt },
           ].map((t) => {
@@ -1044,7 +1042,7 @@ export function AvatarDesignerStudio({
                   "flex-1 flex items-center justify-center gap-1 rounded-full py-1.5 text-xs font-bold border border-ink shadow-2xs transition-all",
                   isActive
                     ? "bg-[#FFE169] border-2 border-ink font-black shadow-xs"
-                    : "bg-white text-ink"
+                    : "bg-white text-ink",
                 )}
               >
                 <Icon className="h-3.5 w-3.5 stroke-[2.5]" />
@@ -1060,9 +1058,7 @@ export function AvatarDesignerStudio({
             <>
               {/* Skin Tone Row */}
               <div>
-                <span className="block text-[11px] font-black text-ink mb-1.5">
-                  Skin Tone
-                </span>
+                <span className="block text-[11px] font-black text-ink mb-1.5">Skin Tone</span>
                 <div className="flex items-center justify-between">
                   {SKIN_TONES.map((s) => {
                     const isSelected = skinToneHex.toLowerCase() === s.hex.toLowerCase();
@@ -1076,7 +1072,7 @@ export function AvatarDesignerStudio({
                         }}
                         className={cn(
                           "relative h-7 w-7 rounded-full border-2 border-ink shadow-2xs",
-                          isSelected && "ring-2 ring-[#FFE169] scale-110"
+                          isSelected && "ring-2 ring-[#FFE169] scale-110",
                         )}
                         style={{ backgroundColor: s.hex }}
                         title={s.label}
@@ -1092,9 +1088,7 @@ export function AvatarDesignerStudio({
 
               {/* Body Frame Row */}
               <div>
-                <span className="block text-[11px] font-black text-ink mb-1.5">
-                  Body Frame
-                </span>
+                <span className="block text-[11px] font-black text-ink mb-1.5">Body Frame</span>
                 <div className="grid grid-cols-4 gap-1.5">
                   {BODY_FRAMES.map((f) => {
                     const isSelected = bodyFrame === f.id;
@@ -1112,7 +1106,7 @@ export function AvatarDesignerStudio({
                           "relative flex flex-col items-center justify-center rounded-xl border py-1.5 transition-all shadow-2xs",
                           isSelected
                             ? "border-2 border-ink bg-[#FFE169] font-black"
-                            : "border-ink/40 bg-white font-semibold"
+                            : "border-ink/40 bg-white font-semibold",
                         )}
                       >
                         {isSelected && (
@@ -1130,7 +1124,7 @@ export function AvatarDesignerStudio({
             </>
           )}
 
-          {activeTab === "face" && (
+          {activeTab === "avatar" && (
             <div className="space-y-2">
               <span className="block text-[11px] font-black text-ink">Avatar Twin</span>
               <div className="grid grid-cols-2 gap-2">
@@ -1147,7 +1141,7 @@ export function AvatarDesignerStudio({
                       "rounded-xl border py-2 text-xs font-bold transition-all",
                       modelType === t.id
                         ? "border-2 border-ink bg-[#FFE169] font-black"
-                        : "border-ink/40 bg-white"
+                        : "border-ink/40 bg-white",
                     )}
                   >
                     {t.label}
@@ -1173,7 +1167,7 @@ export function AvatarDesignerStudio({
                       "rounded-xl border py-1.5 text-[10px] transition-all",
                       hairStyle === h.id
                         ? "border-2 border-ink bg-[#FFE169] font-black"
-                        : "border-ink/40 bg-white"
+                        : "border-ink/40 bg-white",
                     )}
                   >
                     {h.label}
@@ -1199,7 +1193,7 @@ export function AvatarDesignerStudio({
                       "rounded-xl border py-1.5 text-xs capitalize transition-all",
                       outfit.topType === t
                         ? "border-2 border-ink bg-[#FFE169] font-black"
-                        : "border-ink/40 bg-white"
+                        : "border-ink/40 bg-white",
                     )}
                   >
                     {t}
