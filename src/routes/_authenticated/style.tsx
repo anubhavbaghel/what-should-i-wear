@@ -8,8 +8,21 @@ import { Sparkles, Loader2, Camera, Check } from "lucide-react";
 import { listClothing } from "@/lib/closet.functions";
 import { generateTryOn, getProfile } from "@/lib/outfits.functions";
 import { MannequinAvatar, BuildType, SkinToneType } from "@/components/MannequinAvatar";
-import { ThreeMannequinViewer } from "@/components/ThreeMannequinViewer";
+import {
+  ThreeMannequinViewer,
+  type ModelPresetType,
+  type HairstyleType,
+  type EyewearType,
+  type FashionStanceType,
+} from "@/components/ThreeMannequinViewer";
 import { BodyTypeSelector } from "@/components/BodyTypeSelector";
+import type { AvatarConfig } from "@/lib/avatar.types";
+import {
+  DEFAULT_AVATAR_CONFIG,
+  resolveStyleAvatarConfig,
+  applyPresetChangeToAvatarConfig,
+  applyPresentationChangeToAvatarConfig,
+} from "@/lib/avatar-style-sync";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated/style")({
@@ -64,7 +77,7 @@ function StylePage() {
     queryKey: ["closet"],
     queryFn: () => fetchList(),
   });
-  const { data: profileData } = useQuery({
+  const { data: profileData, isLoading: isProfileLoading } = useQuery({
     queryKey: ["profile"],
     queryFn: () => fetchProfile(),
   });
@@ -75,45 +88,32 @@ function StylePage() {
   const [generating, setGenerating] = useState(false);
   const [showFigureSettings, setShowFigureSettings] = useState(false);
   const [viewMode, setViewMode] = useState<"3d" | "2d">("3d");
-  const [avatarConfig, setAvatarConfig] = useState<{
-    modelType: string;
-    hairStyle: string;
-    hairColorHex: string;
-    eyewear: string;
-    stance: string;
-  }>({
-    modelType: "procedural",
-    hairStyle: "wavy_curtains",
-    hairColorHex: "#18181A",
-    eyewear: "none",
-    stance: "runway_confident",
-  });
+  const [avatarConfig, setAvatarConfig] = useState<AvatarConfig>(DEFAULT_AVATAR_CONFIG);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem("atelier_avatar_config");
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setAvatarConfig({
-          modelType: parsed.modelType || "procedural",
-          hairStyle: parsed.hairStyle || "wavy_curtains",
-          hairColorHex: parsed.hairColorHex || "#18181A",
-          eyewear: parsed.eyewear || "none",
-          stance: parsed.stance || "runway_confident",
-        });
-      }
-    } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
+    if (!profileData) return;
     const p = profileData?.profile?.mannequin_preset as Preset | undefined;
     if (p) setPreset(p);
     if (profileData?.stylePresentation) {
       setPresentation(profileData.stylePresentation as Presentation);
     }
+    const resolved = resolveStyleAvatarConfig({
+      profileData,
+      currentPreset: p,
+      currentPresentation: profileData?.stylePresentation,
+    });
+    setAvatarConfig(resolved);
   }, [profileData]);
+
+  function handlePresetChange(newPreset: string) {
+    setPreset(newPreset as Preset);
+    setAvatarConfig((prev) => applyPresetChangeToAvatarConfig(prev, newPreset));
+  }
+
+  function handlePresentationChange(newPresentation: Presentation) {
+    setPresentation(newPresentation);
+    setAvatarConfig((prev) => applyPresentationChangeToAvatarConfig(prev, newPresentation));
+  }
 
   const items = closet?.items ?? [];
   const grouped = useMemo(() => {
@@ -159,7 +159,7 @@ function StylePage() {
     let topType: "none" | "tee" | "shirt" | "jacket" = "none";
     if (outer) topType = "jacket";
     else if (top) {
-      const sub = ((top as any).subcategory || top.name || "").toLowerCase();
+      const sub = ((top as { subcategory?: string }).subcategory || top.name || "").toLowerCase();
       if (sub.includes("shirt") || sub.includes("button") || sub.includes("linen")) {
         topType = "shirt";
       } else {
@@ -169,16 +169,26 @@ function StylePage() {
 
     let bottomType: "none" | "trousers" | "wide_chinos" | "shorts" = "none";
     if (bottom) {
-      const sub = ((bottom as any).subcategory || bottom.name || "").toLowerCase();
+      const sub = (
+        (bottom as { subcategory?: string }).subcategory ||
+        bottom.name ||
+        ""
+      ).toLowerCase();
       if (sub.includes("short")) bottomType = "shorts";
-      else if (sub.includes("chino") || sub.includes("wide") || sub.includes("cargo")) bottomType = "wide_chinos";
+      else if (sub.includes("chino") || sub.includes("wide") || sub.includes("cargo"))
+        bottomType = "wide_chinos";
       else bottomType = "trousers";
     }
 
     let shoesType: "none" | "sneakers" | "loafers" = "none";
     if (shoes) {
-      const sub = ((shoes as any).subcategory || shoes.name || "").toLowerCase();
-      if (sub.includes("loafer") || sub.includes("boot") || sub.includes("formal")) shoesType = "loafers";
+      const sub = (
+        (shoes as { subcategory?: string }).subcategory ||
+        shoes.name ||
+        ""
+      ).toLowerCase();
+      if (sub.includes("loafer") || sub.includes("boot") || sub.includes("formal"))
+        shoesType = "loafers";
       else shoesType = "sneakers";
     }
 
@@ -219,10 +229,15 @@ function StylePage() {
   return (
     <div className="px-5 pt-10 pb-40">
       <header>
-        <span className="sticker -rotate-2" style={{ background: "var(--sun)" }}>try on</span>
+        <span className="sticker -rotate-2" style={{ background: "var(--sun)" }}>
+          try on
+        </span>
         <h1 className="display mt-3 text-[2.4rem] text-foreground">
           Style a{" "}
-          <span className="inline-block rotate-1 rounded-xl border-[1.5px] border-ink px-2" style={{ background: "var(--sun)" }}>
+          <span
+            className="inline-block rotate-1 rounded-xl border-[1.5px] border-ink px-2"
+            style={{ background: "var(--sun)" }}
+          >
             look
           </span>
         </h1>
@@ -242,7 +257,9 @@ function StylePage() {
               onClick={() => setViewMode("3d")}
               className={cn(
                 "rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all",
-                viewMode === "3d" ? "bg-sun text-ink border border-ink shadow-xs" : "text-muted-foreground hover:text-ink"
+                viewMode === "3d"
+                  ? "bg-sun text-ink border border-ink shadow-xs"
+                  : "text-muted-foreground hover:text-ink",
               )}
             >
               ✦ 3D Avatar
@@ -252,7 +269,9 @@ function StylePage() {
               onClick={() => setViewMode("2d")}
               className={cn(
                 "rounded-full px-2.5 py-0.5 text-[11px] font-bold transition-all",
-                viewMode === "2d" ? "bg-card text-ink border border-ink shadow-xs" : "text-muted-foreground hover:text-ink"
+                viewMode === "2d"
+                  ? "bg-card text-ink border border-ink shadow-xs"
+                  : "text-muted-foreground hover:text-ink",
               )}
             >
               2D Schematic
@@ -283,18 +302,27 @@ function StylePage() {
         {/* Viewport: 3D Stylized Twin vs 2D Schematic */}
         {viewMode === "3d" ? (
           <div className="w-full">
-            <ThreeMannequinViewer
-              modelType={avatarConfig.modelType as any}
-              build={build}
-              skinToneHex={skinToneHex}
-              hairStyle={avatarConfig.hairStyle as any}
-              hairColorHex={avatarConfig.hairColorHex}
-              eyewear={avatarConfig.eyewear as any}
-              presentation={presentation}
-              outfit={threeDOutfit}
-              stance={avatarConfig.stance as any}
-              className="h-72 w-full"
-            />
+            {isProfileLoading ? (
+              <div className="flex h-72 w-full flex-col items-center justify-center rounded-3xl border-2 border-ink bg-[#FFFDF9] shadow-xs">
+                <Loader2 className="h-6 w-6 animate-spin text-ink" />
+                <span className="mt-2 text-xs font-bold text-ink">Loading mannequin…</span>
+              </div>
+            ) : (
+              <ThreeMannequinViewer
+                modelType={avatarConfig.modelType as ModelPresetType}
+                build={build}
+                skinToneHex={skinToneHex}
+                hairStyle={avatarConfig.hairStyle as HairstyleType}
+                hairColorHex={avatarConfig.hairColorHex}
+                eyewear={avatarConfig.eyewear as EyewearType}
+                presentation={presentation}
+                heightScale={avatarConfig.heightScale}
+                bodyMorphs={avatarConfig.bodyMorphs}
+                outfit={threeDOutfit}
+                stance={avatarConfig.stance as FashionStanceType}
+                className="h-72 w-full"
+              />
+            )}
           </div>
         ) : (
           <div className="relative flex items-center justify-center h-60 w-full">
@@ -318,9 +346,9 @@ function StylePage() {
           <div className="w-full mt-5 pt-5 border-t-[1.5px] border-ink/15 text-left">
             <BodyTypeSelector
               value={preset}
-              onChange={(p) => setPreset(p as Preset)}
+              onChange={handlePresetChange}
               presentation={presentation}
-              onPresentationChange={(pr) => setPresentation(pr as Presentation)}
+              onPresentationChange={(pr) => handlePresentationChange(pr as Presentation)}
               showPresentationToggle={true}
             />
           </div>
@@ -339,11 +367,17 @@ function StylePage() {
         {isLoading ? (
           <div className="mt-4 grid grid-cols-3 gap-3">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="aspect-square animate-pulse rounded-2xl border-[1.5px] border-ink/20 bg-muted" />
+              <div
+                key={i}
+                className="aspect-square animate-pulse rounded-2xl border-[1.5px] border-ink/20 bg-muted"
+              />
             ))}
           </div>
         ) : items.length === 0 ? (
-          <div className="card-pop mt-5 px-6 py-10 text-center" style={{ background: "var(--pink-soft)" }}>
+          <div
+            className="card-pop mt-5 px-6 py-10 text-center"
+            style={{ background: "var(--pink-soft)" }}
+          >
             <p className="text-sm font-semibold text-foreground">No pieces yet.</p>
             <p className="mt-1 text-xs text-muted-foreground">Add a few items to start styling.</p>
             <Link to="/closet/add" className="btn-pop mt-5 px-5 py-2.5 text-sm" data-tone="pink">

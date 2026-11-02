@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "test": "node --test src/lib/avatar-transform.test.ts"
+    "test": "node --test src/lib/avatar-transform.test.ts src/lib/avatar-style-sync.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

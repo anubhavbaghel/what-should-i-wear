@@ -36,7 +36,8 @@ export type {
   FashionStanceType,
 };
 
-export type ModelPresetType = "/models/female-twin.glb" | "/models/male-twin.glb" | "female" | "male" | string;
+export type ModelPresetType =
+  "/models/female-twin.glb" | "/models/male-twin.glb" | "female" | "male" | string;
 
 export interface ThreeMannequinViewerProps {
   modelType?: ModelPresetType;
@@ -57,6 +58,7 @@ export interface ThreeMannequinViewerProps {
   onUndo?: () => void;
   onFocusChange?: (focus: CameraFocusTarget) => void;
   showFocusTabs?: boolean;
+  hideInternalHeader?: boolean;
 }
 
 export function ThreeMannequinViewer({
@@ -78,6 +80,7 @@ export function ThreeMannequinViewer({
   onUndo,
   onFocusChange,
   showFocusTabs = true,
+  hideInternalHeader = false,
 }: ThreeMannequinViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoRotate, setAutoRotate] = useState(autoRotateDefault);
@@ -178,7 +181,11 @@ export function ThreeMannequinViewer({
     cameraRef.current = camera;
 
     // 3. Renderer setup
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "high-performance" });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance",
+    });
     renderer.setSize(width, height);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
@@ -343,12 +350,18 @@ export function ThreeMannequinViewer({
       const activeBones = modelBonesRef.current;
       const spine1StanceQ = spine1StanceQuatRef.current;
       if (activeBones.spine1 && spine1StanceQ) {
-        const breathQ = new THREE.Quaternion().setFromEuler(new THREE.Euler(breathOffset, 0, 0, "XYZ"));
+        const breathQ = new THREE.Quaternion().setFromEuler(
+          new THREE.Euler(breathOffset, 0, 0, "XYZ"),
+        );
         activeBones.spine1.quaternion.copy(spine1StanceQ).multiply(breathQ);
       }
 
       const modMeshes = modularMeshesRef.current;
-      if (modMeshes.head && modMeshes.head.morphTargetDictionary && modMeshes.head.morphTargetInfluences) {
+      if (
+        modMeshes.head &&
+        modMeshes.head.morphTargetDictionary &&
+        modMeshes.head.morphTargetInfluences
+      ) {
         const dict = modMeshes.head.morphTargetDictionary;
         const inf = modMeshes.head.morphTargetInfluences;
         if (dict.eyeBlinkLeft !== undefined) inf[dict.eyeBlinkLeft] = blinkVal;
@@ -414,7 +427,7 @@ export function ThreeMannequinViewer({
           pinchStartDistRef.current = dist;
           cameraTargetRef.current.targetDistance = Math.max(
             zoomRef.current.min,
-            Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance + diff)
+            Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance + diff),
           );
           return;
         } else if (e.touches.length === 1) {
@@ -433,7 +446,7 @@ export function ThreeMannequinViewer({
       rotationRef.current.targetY += deltaX * 0.012;
       rotationRef.current.targetPitch = Math.max(
         -0.25,
-        Math.min(0.35, rotationRef.current.targetPitch + deltaY * 0.008)
+        Math.min(0.35, rotationRef.current.targetPitch + deltaY * 0.008),
       );
     };
 
@@ -448,7 +461,7 @@ export function ThreeMannequinViewer({
       const zoomDelta = e.deltaY * 0.003;
       const newDist = Math.max(
         zoomRef.current.min,
-        Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance + zoomDelta)
+        Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance + zoomDelta),
       );
       cameraTargetRef.current.targetDistance = newDist;
       zoomRef.current.targetDistance = newDist;
@@ -489,18 +502,30 @@ export function ThreeMannequinViewer({
     if (!modMeshes.head && !modMeshes.body) return;
 
     if (modMeshes.head?.material) {
-      const mat = (Array.isArray(modMeshes.head.material) ? modMeshes.head.material[0] : modMeshes.head.material) as THREE.MeshStandardMaterial;
+      const mat = (
+        Array.isArray(modMeshes.head.material)
+          ? modMeshes.head.material[0]
+          : modMeshes.head.material
+      ) as THREE.MeshStandardMaterial;
       if (mat && mat.color) mat.color.set(skinToneHex);
     }
     if (modMeshes.body?.material) {
-      const mat = (Array.isArray(modMeshes.body.material) ? modMeshes.body.material[0] : modMeshes.body.material) as THREE.MeshStandardMaterial;
+      const mat = (
+        Array.isArray(modMeshes.body.material)
+          ? modMeshes.body.material[0]
+          : modMeshes.body.material
+      ) as THREE.MeshStandardMaterial;
       if (mat && mat.color) mat.color.set(skinToneHex);
     }
 
     if (modMeshes.hair) {
       modMeshes.hair.visible = hairStyle !== "none";
       if (modMeshes.hair.material) {
-        const mat = (Array.isArray(modMeshes.hair.material) ? modMeshes.hair.material[0] : modMeshes.hair.material) as THREE.MeshStandardMaterial;
+        const mat = (
+          Array.isArray(modMeshes.hair.material)
+            ? modMeshes.hair.material[0]
+            : modMeshes.hair.material
+        ) as THREE.MeshStandardMaterial;
         if (mat && mat.color) mat.color.set(hairColorHex);
       }
     }
@@ -513,7 +538,9 @@ export function ThreeMannequinViewer({
       const isTopVisible = outfit?.topType !== "none";
       modMeshes.top.visible = isTopVisible;
       if (isTopVisible && outfit?.topColor && modMeshes.top.material) {
-        const mat = (Array.isArray(modMeshes.top.material) ? modMeshes.top.material[0] : modMeshes.top.material) as THREE.MeshStandardMaterial;
+        const mat = (
+          Array.isArray(modMeshes.top.material) ? modMeshes.top.material[0] : modMeshes.top.material
+        ) as THREE.MeshStandardMaterial;
         if (mat && mat.color) mat.color.set(outfit.topColor);
       }
     }
@@ -522,7 +549,11 @@ export function ThreeMannequinViewer({
       const isBottomVisible = outfit?.bottomType !== "none";
       modMeshes.bottom.visible = isBottomVisible;
       if (isBottomVisible && outfit?.bottomColor && modMeshes.bottom.material) {
-        const mat = (Array.isArray(modMeshes.bottom.material) ? modMeshes.bottom.material[0] : modMeshes.bottom.material) as THREE.MeshStandardMaterial;
+        const mat = (
+          Array.isArray(modMeshes.bottom.material)
+            ? modMeshes.bottom.material[0]
+            : modMeshes.bottom.material
+        ) as THREE.MeshStandardMaterial;
         if (mat && mat.color) mat.color.set(outfit.bottomColor);
       }
     }
@@ -531,7 +562,11 @@ export function ThreeMannequinViewer({
       const isShoesVisible = outfit?.shoesType !== "none";
       modMeshes.footwear.visible = isShoesVisible;
       if (isShoesVisible && outfit?.shoesColor && modMeshes.footwear.material) {
-        const mat = (Array.isArray(modMeshes.footwear.material) ? modMeshes.footwear.material[0] : modMeshes.footwear.material) as THREE.MeshStandardMaterial;
+        const mat = (
+          Array.isArray(modMeshes.footwear.material)
+            ? modMeshes.footwear.material[0]
+            : modMeshes.footwear.material
+        ) as THREE.MeshStandardMaterial;
         if (mat && mat.color) mat.color.set(outfit.shoesColor);
       }
     }
@@ -554,7 +589,7 @@ export function ThreeMannequinViewer({
         stance,
         heightScale,
       },
-      { isFemale: isFemaleModelRef.current }
+      { isFemale: isFemaleModelRef.current },
     );
     spine1StanceQuatRef.current = spine1StanceQuat || null;
 
@@ -572,7 +607,9 @@ export function ThreeMannequinViewer({
       modelType === "/models/male-twin.glb" ||
       modelType === "soldier" ||
       modelType === "xbot" ||
-      (modelType !== "female" && modelType !== "/models/female-twin.glb" && presentation === "masculine");
+      (modelType !== "female" &&
+        modelType !== "/models/female-twin.glb" &&
+        presentation === "masculine");
     const effectiveUrl = isMale ? "/models/male-twin.glb" : "/models/female-twin.glb";
     isFemaleModelRef.current = !isMale;
 
@@ -599,7 +636,7 @@ export function ThreeMannequinViewer({
         obj,
         effectiveUrl,
         targetGroundY,
-        targetHeight
+        targetHeight,
       );
       modelBonesRef.current = bones;
       baselinesRef.current = baselines;
@@ -673,7 +710,7 @@ export function ThreeMannequinViewer({
         console.warn(`GLTF load failed for ${effectiveUrl}:`, err);
         if (isCancelled) return;
         setIsLoadingModel(false);
-      }
+      },
     );
 
     return () => {
@@ -699,19 +736,24 @@ export function ThreeMannequinViewer({
   function handleZoomIn() {
     zoomRef.current.targetDistance = Math.max(
       zoomRef.current.min,
-      zoomRef.current.targetDistance - 0.5
+      zoomRef.current.targetDistance - 0.5,
     );
   }
 
   function handleZoomOut() {
     zoomRef.current.targetDistance = Math.min(
       zoomRef.current.max,
-      zoomRef.current.targetDistance + 0.5
+      zoomRef.current.targetDistance + 0.5,
     );
   }
 
   return (
-    <div className={cn("relative w-full h-full min-h-[300px] select-none overflow-hidden rounded-3xl border-2 border-ink bg-[#FFFDF9] shadow-xs", className)}>
+    <div
+      className={cn(
+        "relative w-full h-full min-h-[300px] select-none overflow-hidden rounded-3xl bg-neutral-100/40",
+        className,
+      )}
+    >
       {/* Three.js Canvas Container */}
       <div
         ref={containerRef}
@@ -720,7 +762,7 @@ export function ThreeMannequinViewer({
 
       {/* Top Left: Camera Focus Segmented Pills (Full, Face, Torso, Shoes) */}
       {showFocusTabs && (
-        <div className="absolute top-3 left-3 z-20 flex items-center gap-1 rounded-full border border-ink bg-white/95 p-1 shadow-xs backdrop-blur-xs">
+        <div className="absolute top-3 left-3 z-20 flex items-center gap-1 rounded-full border border-black/5 bg-white/80 p-1 shadow-sm backdrop-blur-md">
           {(["full", "face", "torso", "shoes"] as const).map((f) => {
             const isCurrent = activeFocus === f;
             return (
@@ -734,8 +776,8 @@ export function ThreeMannequinViewer({
                 className={cn(
                   "rounded-full px-2.5 py-0.5 text-[11px] font-extrabold capitalize transition-all",
                   isCurrent
-                    ? "bg-ink text-white shadow-xs"
-                    : "text-ink hover:bg-neutral-100"
+                    ? "bg-neutral-900 text-white shadow-xs"
+                    : "text-neutral-600 hover:text-neutral-900 hover:bg-black/5",
                 )}
               >
                 {f}
@@ -746,45 +788,47 @@ export function ThreeMannequinViewer({
       )}
 
       {/* Top Right: Undo ↺ & Reset ↻ Circular Buttons */}
-      <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
-        {onUndo && (
+      {!hideInternalHeader && (
+        <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5">
+          {onUndo && (
+            <button
+              type="button"
+              onClick={onUndo}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-black/5 bg-white/80 text-neutral-700 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:text-neutral-900 active:scale-95"
+              title="Undo"
+              aria-label="Undo"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+          )}
           <button
             type="button"
-            onClick={onUndo}
-            className="flex h-8 w-8 items-center justify-center rounded-full border border-ink bg-white text-ink shadow-xs transition-transform hover:bg-neutral-100 active:scale-95"
-            title="Undo"
-            aria-label="Undo"
+            onClick={resetView}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-black/5 bg-white/80 text-neutral-700 shadow-sm backdrop-blur-md transition-all hover:bg-white hover:text-neutral-900 active:scale-95"
+            title="Reset View"
+            aria-label="Reset View"
           >
-            <Undo2 className="h-4 w-4" />
+            <RefreshCw className="h-4 w-4" />
           </button>
-        )}
-        <button
-          type="button"
-          onClick={resetView}
-          className="flex h-8 w-8 items-center justify-center rounded-full border border-ink bg-white text-ink shadow-xs transition-transform hover:bg-neutral-100 active:scale-95"
-          title="Reset View"
-          aria-label="Reset View"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </button>
-      </div>
+        </div>
+      )}
 
       {/* Right Edge: Vertical Zoom Controls (+ / -) */}
-      <div className="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-1 rounded-full border border-ink bg-white/95 p-1 shadow-xs backdrop-blur-xs">
+      <div className="absolute right-3 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center gap-1 rounded-full border border-black/5 bg-white/80 p-1 shadow-sm backdrop-blur-md">
         <button
           type="button"
           onClick={handleZoomIn}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-ink transition-transform hover:bg-neutral-100 active:scale-90"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-700 transition-transform hover:bg-black/5 hover:text-neutral-900 active:scale-90"
           title="Zoom In"
           aria-label="Zoom in"
         >
           <Plus className="h-4 w-4 stroke-[2.5]" />
         </button>
-        <div className="h-px w-3 bg-ink/20" />
+        <div className="h-px w-3 bg-neutral-200" />
         <button
           type="button"
           onClick={handleZoomOut}
-          className="flex h-7 w-7 items-center justify-center rounded-full text-ink transition-transform hover:bg-neutral-100 active:scale-90"
+          className="flex h-7 w-7 items-center justify-center rounded-full text-neutral-700 transition-transform hover:bg-black/5 hover:text-neutral-900 active:scale-90"
           title="Zoom Out"
           aria-label="Zoom out"
         >
@@ -794,18 +838,18 @@ export function ThreeMannequinViewer({
 
       {/* Bottom Center: Drag to Rotate & Scroll to Zoom Pill */}
       <div className="pointer-events-none absolute bottom-3 left-1/2 z-20 -translate-x-1/2">
-        <div className="flex items-center gap-1.5 rounded-full border border-ink bg-white/95 px-3.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-ink shadow-xs backdrop-blur-xs">
-          <span>✦ DRAG TO ROTATE 360°</span>
-          <span className="text-ink/40">·</span>
-          <span>SCROLL TO ZOOM ✦</span>
+        <div className="flex items-center gap-1.5 rounded-full border border-black/5 bg-white/70 px-3 py-1 text-[11px] font-medium text-neutral-500 shadow-xs backdrop-blur-md">
+          <span>Drag to rotate 360°</span>
+          <span className="text-neutral-300">·</span>
+          <span>Scroll to zoom</span>
         </div>
       </div>
 
       {/* Loading Overlay */}
       {isLoadingModel && (
-        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center bg-card/60 backdrop-blur-xs">
-          <Loader2 className="h-6 w-6 animate-spin text-ink" />
-          <span className="mt-2 text-xs font-bold text-ink">Loading 3D Twin…</span>
+        <div className="pointer-events-none absolute inset-0 z-30 flex flex-col items-center justify-center bg-white/80 backdrop-blur-md">
+          <Loader2 className="h-6 w-6 animate-spin text-neutral-800" />
+          <span className="mt-2 text-xs font-medium text-neutral-600">Loading 3D Twin…</span>
         </div>
       )}
     </div>

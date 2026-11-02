@@ -26,10 +26,27 @@ import {
   ArrowRight,
   Glasses,
   Eye,
+  ChevronDown,
+  ChevronUp,
+  Undo2,
+  ArrowLeft,
+  Sliders,
 } from "lucide-react";
 
 export type StudioTab = "body" | "face" | "hair" | "outfit" | "avatar";
 export type { BodyFrameType };
+
+const MOBILE_CATEGORIES: {
+  id: StudioTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}[] = [
+  { id: "avatar", label: "Avatar", icon: User },
+  { id: "body", label: "Body", icon: Sliders },
+  { id: "face", label: "Face", icon: Smile },
+  { id: "hair", label: "Hair", icon: Sparkles },
+  { id: "outfit", label: "Outfit", icon: Shirt },
+];
 
 export interface AvatarDesignerStudioProps {
   initialConfig?: AvatarConfig;
@@ -193,6 +210,9 @@ export function AvatarDesignerStudio({
 }: AvatarDesignerStudioProps) {
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<StudioTab>("body");
+
+  // Mobile sheet collapse state
+  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState<boolean>(true);
 
   // Development comparison toggle (A/B testing default vs customized body)
   const [isComparingDefault, setIsComparingDefault] = useState<boolean>(false);
@@ -409,30 +429,35 @@ export function AvatarDesignerStudio({
   };
 
   return (
-    <div className={cn("h-full w-full select-none overflow-hidden", className)}>
+    <div
+      className={cn(
+        "h-full w-full select-none overflow-hidden bg-[#F8F9FA] text-neutral-900 font-sans",
+        className,
+      )}
+    >
       {/* =========================================================================
-          DESKTOP DEDICATED VIEW (hidden on mobile, visible md+) - ZERO SCROLL
+          DESKTOP DEDICATED VIEW (hidden on mobile, visible md+) - APPLE STUDIO MINIMALISM
          ========================================================================= */}
       <div className="hidden md:flex h-full w-full max-w-[1360px] mx-auto p-4 flex-col justify-center">
-        <div className="flex flex-col h-[94dvh] w-full rounded-[32px] border-2 border-ink bg-[#FFFDF9] shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] overflow-hidden">
-          {/* Top Yellow Window Header */}
-          <div className="h-14 shrink-0 bg-[#FFE169] border-b-2 border-ink px-6 flex items-center justify-between">
-            {/* Left: Brand & Dot */}
+        <div className="flex flex-col h-[94dvh] w-full rounded-3xl border border-black/[0.08] bg-white shadow-xl overflow-hidden">
+          {/* Top Minimalist Header */}
+          <div className="h-14 shrink-0 bg-white/80 backdrop-blur-md border-b border-black/[0.06] px-6 flex items-center justify-between">
+            {/* Left: Section Title */}
             <div className="flex items-center gap-2.5">
-              <span className="h-3.5 w-3.5 rounded-full bg-[#FF8096] border border-ink shadow-2xs" />
-              <span className="text-base font-black tracking-tight text-ink flex items-center gap-1">
-                <span>⚡</span> WhatShouldIWear
+              <span className="h-2 w-2 rounded-full bg-neutral-900" />
+              <span className="text-sm font-semibold tracking-tight text-neutral-900">
+                Avatar Studio
               </span>
             </div>
 
             {/* Center: 3 Progress Indicator Pills */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
                   className={cn(
-                    "h-2.5 w-10 rounded-full border border-ink transition-colors",
-                    i <= currentStep ? "bg-[#FF8096]" : "bg-white",
+                    "h-1.5 w-8 rounded-full transition-colors",
+                    i <= currentStep ? "bg-neutral-900" : "bg-neutral-200",
                   )}
                 />
               ))}
@@ -443,19 +468,19 @@ export function AvatarDesignerStudio({
               <button
                 type="button"
                 onClick={handleRestart}
-                className="flex items-center gap-1.5 rounded-full border border-ink bg-white px-3.5 py-1 text-xs font-bold text-ink shadow-2xs hover:bg-neutral-100 active:scale-95 transition-transform"
+                className="flex items-center gap-1.5 rounded-full border border-black/5 bg-neutral-100 hover:bg-neutral-200/70 px-3 py-1.5 text-xs font-medium text-neutral-700 transition-all active:scale-95"
                 title="Restart Avatar Customization"
               >
-                <RotateCcw className="h-3 w-3 stroke-[2.5]" />
+                <RotateCcw className="h-3.5 w-3.5" />
                 <span>Restart</span>
               </button>
               <button
                 type="button"
                 onClick={onExit || onBack}
-                className="flex items-center gap-1.5 rounded-full border border-ink bg-white px-3.5 py-1 text-xs font-bold text-ink shadow-2xs hover:bg-neutral-100 active:scale-95 transition-transform"
+                className="flex items-center gap-1.5 rounded-full border border-black/5 bg-neutral-100 hover:bg-neutral-200/70 px-3 py-1.5 text-xs font-medium text-neutral-700 transition-all active:scale-95"
                 title="Exit"
               >
-                <LogOut className="h-3 w-3 stroke-[2.5]" />
+                <LogOut className="h-3.5 w-3.5" />
                 <span>Exit</span>
               </button>
             </div>
@@ -464,7 +489,7 @@ export function AvatarDesignerStudio({
           {/* Main 2-Column Content Area */}
           <div className="flex-1 min-h-0 flex gap-6 p-6 overflow-hidden">
             {/* LEFT COLUMN: Interactive 3D Mannequin Viewport */}
-            <div className="w-1/2 h-full flex flex-col relative rounded-3xl overflow-hidden">
+            <div className="w-1/2 h-full flex flex-col relative rounded-2xl border border-black/[0.06] bg-neutral-50/60 overflow-hidden">
               <ThreeMannequinViewer
                 modelType={modelType}
                 build={currentFrameObj.build}
@@ -481,7 +506,7 @@ export function AvatarDesignerStudio({
                 onFocusChange={setCameraFocus}
                 onUndo={historyRef.current.length > 0 ? handleUndo : undefined}
                 showFocusTabs={true}
-                className="w-full h-full"
+                className="w-full h-full bg-transparent"
               />
 
               {/* Dev A/B Comparison Pill (Bottom Left of 3D Viewport) */}
@@ -489,10 +514,10 @@ export function AvatarDesignerStudio({
                 type="button"
                 onClick={() => setIsComparingDefault((v) => !v)}
                 className={cn(
-                  "absolute bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-full border border-ink px-3 py-1 text-[10.5px] font-black uppercase tracking-wider shadow-xs backdrop-blur-xs transition-all active:scale-95",
+                  "absolute bottom-3 left-3 z-20 flex items-center gap-1.5 rounded-full border border-black/5 px-3 py-1 text-xs font-medium shadow-sm backdrop-blur-md transition-all active:scale-95",
                   isComparingDefault
-                    ? "bg-[#FFE169] text-ink border-2"
-                    : "bg-white/95 text-ink hover:bg-neutral-100",
+                    ? "bg-neutral-900 text-white"
+                    : "bg-white/80 text-neutral-700 hover:bg-white hover:text-neutral-900",
                 )}
                 title="Toggle comparison between default base proportions and custom body morphs"
               >
@@ -503,39 +528,25 @@ export function AvatarDesignerStudio({
 
             {/* RIGHT COLUMN: Customization Studio Panel */}
             <div className="w-1/2 h-full flex flex-col justify-between overflow-hidden py-1">
-              {/* Badges Header */}
-              <div className="flex items-center gap-2">
-                <span className="rounded-full border border-ink bg-[#FF8096] px-3 py-0.5 text-[11px] font-black uppercase tracking-wider text-ink shadow-2xs">
-                  3D MANNEQUIN STUDIO
-                </span>
-                <span className="flex items-center gap-1 rounded-full border border-ink bg-[#B6F3D6] px-3 py-0.5 text-[11px] font-bold text-ink shadow-2xs">
-                  <Check className="h-3 w-3 stroke-[3]" />
-                  <span>Changes apply instantly</span>
+              {/* Studio Header */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
+                    Customize Mannequin
+                  </h1>
+                  <p className="mt-0.5 text-xs text-neutral-500 font-normal">
+                    Adjust your avatar's proportions and style in real time.
+                  </p>
+                </div>
+                <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-0.5 text-[11px] font-medium flex items-center gap-1">
+                  <Check className="h-3 w-3 stroke-[2.5]" />
+                  <span>Live Sync</span>
                 </span>
               </div>
 
-              {/* Title & Subtitle */}
-              <div className="mt-2">
-                <h1 className="text-3xl font-black tracking-tight text-ink flex items-center gap-2">
-                  <span>Design your</span>
-                  <span className="rounded-xl border border-ink bg-[#7BE495] px-2.5 py-0.5 font-black inline-block shadow-2xs">
-                    mannequin
-                  </span>
-                </h1>
-                <p className="mt-1 text-xs text-muted-foreground font-semibold">
-                  Make it yours, then style your look.
-                </p>
-              </div>
-
-              {/* Category Tab Pills */}
-              <div className="flex items-center gap-2 mt-3">
-                {[
-                  { id: "body" as const, label: "Body", icon: User },
-                  { id: "face" as const, label: "Face", icon: Smile },
-                  { id: "avatar" as const, label: "Avatar", icon: User },
-                  { id: "hair" as const, label: "Hair", icon: Sparkles },
-                  { id: "outfit" as const, label: "Outfit", icon: Shirt },
-                ].map((t) => {
+              {/* iOS-Style Category Segmented Pills */}
+              <div className="flex items-center gap-1 bg-neutral-100 p-1 rounded-full mt-3 border border-black/[0.04]">
+                {MOBILE_CATEGORIES.map((t) => {
                   const isActive = activeTab === t.id;
                   const Icon = t.icon;
                   return (
@@ -544,27 +555,28 @@ export function AvatarDesignerStudio({
                       type="button"
                       onClick={() => setActiveTab(t.id)}
                       className={cn(
-                        "flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition-all border border-ink shadow-2xs",
+                        "flex-1 flex items-center justify-center gap-1.5 rounded-full py-1.5 text-xs font-medium transition-all",
                         isActive
-                          ? "bg-[#FFE169] border-2 border-ink shadow-xs scale-102 font-black"
-                          : "bg-white text-ink hover:bg-neutral-50",
+                          ? "bg-white text-neutral-900 shadow-xs font-semibold"
+                          : "text-neutral-500 hover:text-neutral-900",
                       )}
                     >
-                      <Icon className="h-3.5 w-3.5 stroke-[2.5]" />
+                      <Icon className="h-3.5 w-3.5" />
                       <span>{t.label}</span>
-                      {isActive && <Check className="h-3 w-3 stroke-[3]" />}
                     </button>
                   );
                 })}
               </div>
 
               {/* Active Tab Customization Card */}
-              <div className="flex-1 min-h-0 bg-white rounded-3xl border-2 border-ink p-4 flex flex-col justify-around my-3 shadow-xs overflow-hidden">
+              <div className="flex-1 min-h-0 bg-white rounded-2xl border border-black/[0.06] p-4 flex flex-col justify-around my-3 shadow-xs overflow-hidden">
                 {activeTab === "body" && (
                   <>
                     {/* 1. Body Frame */}
                     <div>
-                      <span className="block text-xs font-black text-ink mb-2">Body Frame</span>
+                      <span className="block text-xs font-medium text-neutral-700 mb-2">
+                        Body Frame
+                      </span>
                       <div className="grid grid-cols-4 gap-2">
                         {BODY_FRAMES.map((f) => {
                           const isSelected = bodyFrame === f.id;
@@ -579,19 +591,14 @@ export function AvatarDesignerStudio({
                                 setWaistPct(50);
                               }}
                               className={cn(
-                                "relative flex flex-col items-center justify-center rounded-2xl border p-2.5 transition-all shadow-2xs",
+                                "relative flex flex-col items-center justify-center rounded-2xl border p-2.5 transition-all",
                                 isSelected
-                                  ? "border-2 border-ink bg-[#FFE169] font-black shadow-xs scale-102"
-                                  : "border-ink/40 bg-white hover:border-ink font-semibold",
+                                  ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                  : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                               )}
                             >
-                              {isSelected && (
-                                <span className="absolute top-1.5 right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-ink text-white">
-                                  <Check className="h-2.5 w-2.5 stroke-[3]" />
-                                </span>
-                              )}
                               <BodySilhouetteIcon type={f.id} isSelected={isSelected} />
-                              <span className="mt-1 text-[11px]">{f.label}</span>
+                              <span className="mt-1 text-[11px] font-medium">{f.label}</span>
                             </button>
                           );
                         })}
@@ -600,21 +607,21 @@ export function AvatarDesignerStudio({
 
                     {/* 2. Height Slider */}
                     <div>
-                      <div className="flex items-center justify-between text-xs font-black text-ink mb-1">
+                      <div className="flex items-center justify-between text-xs font-medium text-neutral-700 mb-1">
                         <span>Height</span>
-                        <span className="font-black text-sm">{heightCm} cm</span>
+                        <span className="font-semibold text-neutral-900 text-sm">
+                          {heightCm} cm
+                        </span>
                       </div>
-                      <div className="relative flex items-center">
-                        <input
-                          type="range"
-                          min={150}
-                          max={195}
-                          value={heightCm}
-                          onChange={(e) => setHeightCm(Number(e.target.value))}
-                          className="w-full accent-[#FFE169] h-2 rounded-lg cursor-pointer bg-neutral-200 border border-ink/20"
-                        />
-                      </div>
-                      <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground mt-0.5">
+                      <input
+                        type="range"
+                        min={150}
+                        max={195}
+                        value={heightCm}
+                        onChange={(e) => setHeightCm(Number(e.target.value))}
+                        className="w-full accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
+                      />
+                      <div className="flex items-center justify-between text-[10px] text-neutral-400 mt-0.5">
                         <span>150 cm</span>
                         <span>195 cm</span>
                       </div>
@@ -622,7 +629,9 @@ export function AvatarDesignerStudio({
 
                     {/* 3. Skin Tone Swatches */}
                     <div>
-                      <span className="block text-xs font-black text-ink mb-2">Skin Tone</span>
+                      <span className="block text-xs font-medium text-neutral-700 mb-2">
+                        Skin Tone
+                      </span>
                       <div className="flex items-center gap-2.5 flex-wrap">
                         {SKIN_TONES.map((s) => {
                           const isSelected = skinToneHex.toLowerCase() === s.hex.toLowerCase();
@@ -635,14 +644,14 @@ export function AvatarDesignerStudio({
                                 setSkinToneHex(s.hex);
                               }}
                               className={cn(
-                                "relative h-8 w-8 rounded-full border-2 border-ink transition-transform active:scale-90 shadow-2xs",
-                                isSelected && "ring-2 ring-[#FFE169] ring-offset-2 scale-110",
+                                "relative h-8 w-8 rounded-full border border-black/10 transition-transform active:scale-90",
+                                isSelected && "ring-2 ring-neutral-900 ring-offset-2 scale-105",
                               )}
                               style={{ backgroundColor: s.hex }}
                               title={s.label}
                             >
                               {isSelected && (
-                                <Check className="absolute inset-0 m-auto h-4 w-4 stroke-[3] text-ink drop-shadow-xs" />
+                                <Check className="absolute inset-0 m-auto h-3.5 w-3.5 stroke-[2.5] text-white drop-shadow-xs" />
                               )}
                             </button>
                           );
@@ -651,32 +660,38 @@ export function AvatarDesignerStudio({
                     </div>
 
                     {/* 4. Proportions */}
-                    <div>
-                      <span className="block text-xs font-black text-ink mb-1">Proportions</span>
+                    <div className="pt-2 border-t border-black/[0.04]">
+                      <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                        Proportions
+                      </span>
                       <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-[11px] font-bold text-ink">
-                          <span className="w-28">Shoulder Width</span>
+                        <div className="flex items-center justify-between text-xs text-neutral-700">
+                          <span className="w-28 font-medium">Shoulder Width</span>
                           <input
                             type="range"
                             min={30}
                             max={70}
                             value={shoulderPct}
                             onChange={(e) => setShoulderPct(Number(e.target.value))}
-                            className="flex-1 mx-2 accent-[#FFE169] h-2 rounded-lg cursor-pointer bg-neutral-200"
+                            className="flex-1 mx-2 accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
                           />
-                          <span className="w-10 text-right font-black">{shoulderPct}%</span>
+                          <span className="w-10 text-right font-semibold text-neutral-900">
+                            {shoulderPct}%
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between text-[11px] font-bold text-ink">
-                          <span className="w-28">Waist Width</span>
+                        <div className="flex items-center justify-between text-xs text-neutral-700">
+                          <span className="w-28 font-medium">Waist Width</span>
                           <input
                             type="range"
                             min={30}
                             max={70}
                             value={waistPct}
                             onChange={(e) => setWaistPct(Number(e.target.value))}
-                            className="flex-1 mx-2 accent-[#FFE169] h-2 rounded-lg cursor-pointer bg-neutral-200"
+                            className="flex-1 mx-2 accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
                           />
-                          <span className="w-10 text-right font-black">{waistPct}%</span>
+                          <span className="w-10 text-right font-semibold text-neutral-900">
+                            {waistPct}%
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -686,8 +701,8 @@ export function AvatarDesignerStudio({
                 {activeTab === "avatar" && (
                   <div className="flex flex-col justify-around h-full space-y-3">
                     <div>
-                      <span className="block text-xs font-black text-ink mb-2">
-                        Stylized Digital Twin Base
+                      <span className="block text-xs font-medium text-neutral-700 mb-2">
+                        Digital Twin Presentation
                       </span>
                       <div className="grid grid-cols-2 gap-2.5">
                         {AVATAR_TWINS.map((t) => {
@@ -702,16 +717,21 @@ export function AvatarDesignerStudio({
                                 setPresentation(t.presentation);
                               }}
                               className={cn(
-                                "flex flex-col items-center justify-center rounded-2xl border p-3 transition-all",
+                                "flex flex-col items-center justify-center rounded-2xl border p-3.5 transition-all",
                                 isSelected
-                                  ? "border-2 border-ink bg-[#FFE169] font-black shadow-xs"
-                                  : "border-ink/40 bg-white hover:border-ink font-semibold",
+                                  ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                  : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                               )}
                             >
-                              <span className="text-xs font-bold text-muted-foreground">
+                              <span
+                                className={cn(
+                                  "text-xs font-medium",
+                                  isSelected ? "text-neutral-300" : "text-neutral-400",
+                                )}
+                              >
                                 {t.badge}
                               </span>
-                              <span className="text-sm font-black mt-0.5">{t.label}</span>
+                              <span className="text-sm font-semibold mt-0.5">{t.label}</span>
                             </button>
                           );
                         })}
@@ -723,7 +743,7 @@ export function AvatarDesignerStudio({
                 {activeTab === "face" && (
                   <div className="flex flex-col justify-around h-full space-y-3">
                     <div>
-                      <span className="block text-xs font-black text-ink mb-2">
+                      <span className="block text-xs font-medium text-neutral-700 mb-2">
                         Fashion Runway Posture
                       </span>
                       <div className="grid grid-cols-2 gap-2">
@@ -738,10 +758,10 @@ export function AvatarDesignerStudio({
                                 setStance(st.id);
                               }}
                               className={cn(
-                                "rounded-xl border px-3 py-2 text-xs transition-all",
+                                "rounded-xl border px-3 py-2.5 text-xs transition-all font-medium",
                                 isSelected
-                                  ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                  : "border-ink/40 bg-white hover:border-ink font-semibold",
+                                  ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                  : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                               )}
                             >
                               {st.label}
@@ -756,7 +776,7 @@ export function AvatarDesignerStudio({
                 {activeTab === "hair" && (
                   <div className="flex flex-col justify-around h-full space-y-3">
                     <div>
-                      <span className="block text-xs font-black text-ink mb-2">
+                      <span className="block text-xs font-medium text-neutral-700 mb-2">
                         Hairstyle Silhouette
                       </span>
                       <div className="grid grid-cols-3 gap-2">
@@ -771,10 +791,10 @@ export function AvatarDesignerStudio({
                                 setHairStyle(h.id);
                               }}
                               className={cn(
-                                "rounded-xl border px-2.5 py-2 text-[11px] transition-all",
+                                "rounded-xl border px-2.5 py-2 text-[11px] transition-all font-medium",
                                 isSelected
-                                  ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                  : "border-ink/40 bg-white hover:border-ink font-semibold",
+                                  ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                  : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                               )}
                             >
                               {h.label}
@@ -785,10 +805,10 @@ export function AvatarDesignerStudio({
                     </div>
 
                     <div>
-                      <span className="block text-xs font-black text-ink mb-2">
+                      <span className="block text-xs font-medium text-neutral-700 mb-2">
                         Hair Tint Color
                       </span>
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2.5 flex-wrap">
                         {HAIR_COLORS.map((c) => {
                           const isSelected = hairColorHex.toLowerCase() === c.hex.toLowerCase();
                           return (
@@ -800,14 +820,14 @@ export function AvatarDesignerStudio({
                                 setHairColorHex(c.hex);
                               }}
                               className={cn(
-                                "relative h-7 w-7 rounded-full border-2 border-ink shadow-2xs transition-transform active:scale-90",
-                                isSelected && "ring-2 ring-[#FFE169] ring-offset-2 scale-110",
+                                "relative h-7 w-7 rounded-full border border-black/10 transition-transform active:scale-90",
+                                isSelected && "ring-2 ring-neutral-900 ring-offset-2 scale-105",
                               )}
                               style={{ backgroundColor: c.hex }}
                               title={c.label}
                             >
                               {isSelected && (
-                                <Check className="absolute inset-0 m-auto h-3.5 w-3.5 stroke-[3] text-white drop-shadow-xs" />
+                                <Check className="absolute inset-0 m-auto h-3.5 w-3.5 stroke-[2.5] text-white drop-shadow-xs" />
                               )}
                             </button>
                           );
@@ -820,7 +840,9 @@ export function AvatarDesignerStudio({
                 {activeTab === "outfit" && (
                   <div className="flex flex-col justify-around h-full space-y-3">
                     <div>
-                      <span className="block text-xs font-black text-ink mb-1.5">Top Garment</span>
+                      <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                        Top Garment
+                      </span>
                       <div className="grid grid-cols-4 gap-1.5">
                         {(["tee", "shirt", "jacket", "none"] as const).map((t) => (
                           <button
@@ -831,10 +853,10 @@ export function AvatarDesignerStudio({
                               setOutfit((prev) => ({ ...prev, topType: t }));
                             }}
                             className={cn(
-                              "rounded-xl border py-1.5 text-xs capitalize transition-all",
+                              "rounded-xl border py-1.5 text-xs capitalize transition-all font-medium",
                               outfit.topType === t
-                                ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                : "border-ink/40 bg-white hover:border-ink font-semibold",
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                             )}
                           >
                             {t}
@@ -844,7 +866,7 @@ export function AvatarDesignerStudio({
                     </div>
 
                     <div>
-                      <span className="block text-xs font-black text-ink mb-1.5">
+                      <span className="block text-xs font-medium text-neutral-700 mb-1.5">
                         Bottom Garment
                       </span>
                       <div className="grid grid-cols-4 gap-1.5">
@@ -857,10 +879,10 @@ export function AvatarDesignerStudio({
                               setOutfit((prev) => ({ ...prev, bottomType: b }));
                             }}
                             className={cn(
-                              "rounded-xl border py-1.5 text-xs capitalize transition-all",
+                              "rounded-xl border py-1.5 text-xs capitalize transition-all font-medium",
                               outfit.bottomType === b
-                                ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                : "border-ink/40 bg-white hover:border-ink font-semibold",
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                             )}
                           >
                             {b.replace("_", " ")}
@@ -870,8 +892,8 @@ export function AvatarDesignerStudio({
                     </div>
 
                     <div>
-                      <span className="block text-xs font-black text-ink mb-1.5">
-                        Footwear & Glasses
+                      <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                        Footwear & Eyewear
                       </span>
                       <div className="flex items-center gap-2">
                         {(["sneakers", "loafers", "none"] as const).map((s) => (
@@ -883,10 +905,10 @@ export function AvatarDesignerStudio({
                               setOutfit((prev) => ({ ...prev, shoesType: s }));
                             }}
                             className={cn(
-                              "flex-1 rounded-xl border py-1.5 text-xs capitalize transition-all",
+                              "flex-1 rounded-xl border py-1.5 text-xs capitalize transition-all font-medium",
                               outfit.shoesType === s
-                                ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                                : "border-ink/40 bg-white hover:border-ink font-semibold",
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                             )}
                           >
                             {s}
@@ -901,11 +923,16 @@ export function AvatarDesignerStudio({
                             );
                           }}
                           className={cn(
-                            "rounded-xl border px-3 py-1.5 text-xs flex items-center gap-1 transition-all",
+                            "rounded-xl border px-3 py-1.5 text-xs flex items-center gap-1 transition-all font-medium",
                             eyewear !== "none"
-                              ? "border-2 border-ink bg-[#FFE169] font-black shadow-2xs"
-                              : "border-ink/40 bg-white hover:border-ink font-semibold",
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                              : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                           )}
+                          title={
+                            modelType.includes("male")
+                              ? "Glasses mesh female twin only"
+                              : "Toggle eyewear"
+                          }
                         >
                           <Glasses className="h-3.5 w-3.5" />
                           <span>Glasses</span>
@@ -916,14 +943,14 @@ export function AvatarDesignerStudio({
                 )}
               </div>
 
-              {/* Bottom Action Button (Desktop Pink Pill) */}
+              {/* Bottom Action Button (Apple Pill) */}
               <button
                 type="button"
                 onClick={handleContinue}
-                className="w-full rounded-full border-2 border-ink bg-[#FF8096] hover:bg-[#ff6c83] py-3.5 text-base font-black text-ink shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-transform active:scale-[0.99] flex items-center justify-center gap-2"
+                className="w-full rounded-full bg-neutral-900 hover:bg-black py-3.5 text-sm font-medium text-white shadow-sm transition-all active:scale-[0.99] flex items-center justify-center gap-2"
               >
-                <span>{showSaveButton ? "Save & Apply Look" : "Continue to outfits"}</span>
-                <ArrowRight className="h-5 w-5 stroke-[2.5]" />
+                <span>{showSaveButton ? "Save & Apply Look" : "Continue to Outfits"}</span>
+                <ArrowRight className="h-4 w-4" />
               </button>
             </div>
           </div>
@@ -931,61 +958,11 @@ export function AvatarDesignerStudio({
       </div>
 
       {/* =========================================================================
-          MOBILE DEDICATED VIEW (visible on mobile <md, hidden md+) - ZERO SCROLL
+          MOBILE DEDICATED VIEW (visible on mobile <md, hidden md+) - SNAPCHAT / APPLE MINIMALIST
          ========================================================================= */}
-      <div className="flex md:hidden h-full w-full flex-col justify-between p-3 overflow-hidden bg-[#FAF0E6]">
-        {/* Mobile Header Bar */}
-        <div className="flex items-center justify-between shrink-0">
-          <button
-            type="button"
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-ink bg-white shadow-2xs"
-            aria-label="Menu"
-          >
-            <Menu className="h-4 w-4 stroke-[2.5]" />
-          </button>
-
-          <div className="flex flex-col items-center">
-            <span className="text-sm font-black tracking-tight text-ink flex items-center gap-1">
-              <span>⚡</span> WhatShouldIWear
-            </span>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className={cn(
-                    "h-1.5 w-6 rounded-full border border-ink transition-colors",
-                    i <= currentStep ? "bg-[#FF8096]" : "bg-white",
-                  )}
-                />
-              ))}
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleRestart}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-ink bg-white shadow-2xs"
-            aria-label="Restart"
-          >
-            <RotateCcw className="h-4 w-4 stroke-[2.5]" />
-          </button>
-        </div>
-
-        {/* Mobile Title Section */}
-        <div className="text-center my-1.5 shrink-0">
-          <h1 className="text-xl font-black text-ink flex items-center justify-center gap-1.5">
-            <span>Design your</span>
-            <span className="rounded-lg border border-ink bg-[#7BE495] px-2 py-0.5 text-base font-black">
-              mannequin
-            </span>
-          </h1>
-          <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">
-            Make it yours, then style your look.
-          </p>
-        </div>
-
-        {/* Mobile 3D Viewport Card */}
-        <div className="flex-1 min-h-[220px] max-h-[38vh] w-full rounded-2xl border-2 border-ink overflow-hidden my-1 relative shadow-xs bg-white">
+      <div className="relative flex md:hidden h-full w-full flex-col overflow-hidden bg-[#F8F9FA]">
+        {/* Full-bleed 3D Mannequin Canvas (Avatar-First Viewport) */}
+        <div className="absolute inset-0 z-0">
           <ThreeMannequinViewer
             modelType={modelType}
             build={currentFrameObj.build}
@@ -1000,227 +977,612 @@ export function AvatarDesignerStudio({
             outfit={outfit}
             cameraFocus={cameraFocus}
             onFocusChange={setCameraFocus}
-            onUndo={historyRef.current.length > 0 ? handleUndo : undefined}
             showFocusTabs={false}
-            className="w-full h-full"
+            hideInternalHeader={true}
+            className="w-full h-full bg-transparent"
           />
-
-          {/* Dev A/B Comparison Pill (Bottom Left of Mobile Viewport) */}
-          <button
-            type="button"
-            onClick={() => setIsComparingDefault((v) => !v)}
-            className={cn(
-              "absolute bottom-2 left-2 z-20 flex items-center gap-1 rounded-full border border-ink px-2.5 py-0.5 text-[9.5px] font-black uppercase tracking-wider shadow-xs backdrop-blur-xs transition-all active:scale-95",
-              isComparingDefault
-                ? "bg-[#FFE169] text-ink border-2"
-                : "bg-white/95 text-ink hover:bg-neutral-100",
-            )}
-            title="Toggle comparison"
-          >
-            <Eye className="h-3 w-3" />
-            <span>{isComparingDefault ? "Base" : "Custom"}</span>
-          </button>
         </div>
 
-        {/* Mobile Category Tabs */}
-        <div className="flex items-center justify-between gap-1.5 my-1.5 shrink-0">
-          {[
-            { id: "body" as const, label: "Body", icon: User },
-            { id: "face" as const, label: "Face", icon: Smile },
-            { id: "avatar" as const, label: "Avatar", icon: User },
-            { id: "hair" as const, label: "Hair", icon: Sparkles },
-            { id: "outfit" as const, label: "Outfit", icon: Shirt },
-          ].map((t) => {
+        {/* Compact Frosted Floating Top Bar */}
+        <div className="relative z-30 flex items-center justify-between p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pointer-events-none">
+          {/* Left: Back / Exit & Reset */}
+          <div className="flex items-center gap-1.5 pointer-events-auto">
+            {(onBack || onExit) && (
+              <button
+                type="button"
+                onClick={onBack || onExit}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/80 text-neutral-700 shadow-sm backdrop-blur-md transition-all hover:bg-white active:scale-95"
+                aria-label="Back"
+                title="Back"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleRestart}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/80 text-neutral-700 shadow-sm backdrop-blur-md transition-all hover:bg-white active:scale-95"
+              aria-label="Reset Avatar"
+              title="Reset Avatar"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          {/* Center: Digital Twin Selector (iOS Capsule Pill) */}
+          <div className="pointer-events-auto flex items-center rounded-full border border-black/5 bg-white/80 p-0.5 shadow-sm backdrop-blur-md">
+            {AVATAR_TWINS.map((t) => {
+              const isSelected = modelType === t.id;
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => {
+                    pushHistory();
+                    setModelType(t.id);
+                    setPresentation(t.presentation);
+                  }}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium transition-all",
+                    isSelected
+                      ? "bg-neutral-900 text-white shadow-xs"
+                      : "text-neutral-600 hover:text-neutral-900",
+                  )}
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Right: Undo & Comparison Pill */}
+          <div className="flex items-center gap-1.5 pointer-events-auto">
+            <button
+              type="button"
+              onClick={handleUndo}
+              disabled={historyRef.current.length === 0}
+              className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/80 text-neutral-700 shadow-sm backdrop-blur-md transition-all active:scale-95",
+                historyRef.current.length === 0
+                  ? "opacity-30 cursor-not-allowed"
+                  : "hover:bg-white",
+              )}
+              aria-label="Undo"
+              title="Undo"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsComparingDefault((v) => !v)}
+              className={cn(
+                "flex h-9 items-center gap-1 rounded-full border border-black/5 px-2.5 text-[11px] font-medium shadow-sm backdrop-blur-md transition-all active:scale-95",
+                isComparingDefault
+                  ? "bg-neutral-900 text-white"
+                  : "bg-white/80 text-neutral-700 hover:bg-white",
+              )}
+              title="Toggle A/B comparison"
+            >
+              <Eye className="h-3.5 w-3.5" />
+              <span>{isComparingDefault ? "Base" : "Custom"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Floating Camera Focus Controls */}
+        <div className="absolute top-[58px] left-3 z-20 pointer-events-auto">
+          <div className="flex items-center gap-0.5 rounded-full border border-black/5 bg-white/80 p-0.5 shadow-sm backdrop-blur-md">
+            {(["full", "face", "torso", "shoes"] as const).map((f) => {
+              const isCurrent = cameraFocus === f;
+              return (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setCameraFocus(f)}
+                  className={cn(
+                    "rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize transition-all",
+                    isCurrent
+                      ? "bg-neutral-900 text-white shadow-xs"
+                      : "text-neutral-600 hover:text-neutral-900 hover:bg-black/5",
+                  )}
+                >
+                  {f}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Collapsed Expand-Pill Affordance (Snapchat Bitmoji Style) */}
+        {!isMobileSheetOpen && (
+          <div className="absolute bottom-[66px] inset-x-0 z-20 flex justify-center pointer-events-none">
+            <button
+              type="button"
+              onClick={() => setIsMobileSheetOpen(true)}
+              className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-neutral-900/90 text-white px-4 py-2 text-xs font-medium shadow-lg backdrop-blur-md transition-all active:scale-95 hover:bg-black"
+            >
+              <ChevronUp className="h-3.5 w-3.5" />
+              <span>Customize {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
+            </button>
+          </div>
+        )}
+
+        {/* Collapsible Customization Sheet (Apple iOS Style) */}
+        {isMobileSheetOpen && (
+          <div
+            className="absolute bottom-[64px] inset-x-2.5 z-20 max-h-[48vh] flex flex-col rounded-[28px] border border-black/[0.08] bg-white/95 backdrop-blur-2xl shadow-2xl overflow-hidden transition-all duration-300 ease-in-out pointer-events-auto"
+            onTouchStart={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            {/* Grab / Drag Bar Handle */}
+            <div className="w-9 h-1 rounded-full bg-neutral-300 mx-auto my-2 shrink-0" />
+
+            {/* Sheet Header */}
+            <div className="flex items-center justify-between px-4 pb-2 border-b border-black/[0.04] shrink-0">
+              <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
+                {activeTab}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsMobileSheetOpen(false)}
+                className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-colors"
+                title="Collapse controls"
+                aria-label="Collapse controls"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Scrollable Sheet Content */}
+            <div className="flex-1 overflow-y-auto p-3.5 space-y-4 overscroll-contain">
+              {/* TAB: BODY */}
+              {activeTab === "body" && (
+                <>
+                  {/* Body Frame Presets */}
+                  <div>
+                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                      Body Frame
+                    </span>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {BODY_FRAMES.map((f) => {
+                        const isSelected = bodyFrame === f.id;
+                        return (
+                          <button
+                            key={f.id}
+                            type="button"
+                            onClick={() => {
+                              pushHistory();
+                              setBodyFrame(f.id);
+                              setShoulderPct(50);
+                              setWaistPct(50);
+                            }}
+                            className={cn(
+                              "relative flex flex-col items-center justify-center rounded-2xl py-2 px-1 transition-all border",
+                              isSelected
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                            )}
+                          >
+                            <BodySilhouetteIcon type={f.id} isSelected={isSelected} small />
+                            <span className="text-[10px] mt-1 font-medium">{f.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Height Slider */}
+                  <div>
+                    <div className="flex items-center justify-between text-xs font-medium text-neutral-700 mb-1">
+                      <span>Height</span>
+                      <span className="font-semibold text-neutral-900">{heightCm} cm</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={150}
+                      max={195}
+                      value={heightCm}
+                      onChange={(e) => setHeightCm(Number(e.target.value))}
+                      className="w-full accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
+                    />
+                    <div className="flex items-center justify-between text-[10px] text-neutral-400 mt-0.5">
+                      <span>150 cm</span>
+                      <span>195 cm</span>
+                    </div>
+                  </div>
+
+                  {/* Skin Tone Swatches */}
+                  <div>
+                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                      Skin Tone
+                    </span>
+                    <div className="flex items-center justify-between px-1">
+                      {SKIN_TONES.map((s) => {
+                        const isSelected = skinToneHex.toLowerCase() === s.hex.toLowerCase();
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => {
+                              pushHistory();
+                              setSkinToneHex(s.hex);
+                            }}
+                            className={cn(
+                              "relative h-7 w-7 rounded-full border border-black/10 transition-transform active:scale-95",
+                              isSelected && "ring-2 ring-neutral-900 ring-offset-2 scale-105",
+                            )}
+                            style={{ backgroundColor: s.hex }}
+                            title={s.label}
+                          >
+                            {isSelected && (
+                              <Check className="absolute inset-0 m-auto h-3 w-3 stroke-[2.5] text-white drop-shadow-xs" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Proportions Sliders */}
+                  <div className="space-y-2.5 pt-2 border-t border-black/[0.04]">
+                    <span className="block text-xs font-medium text-neutral-700">Proportions</span>
+                    <div className="flex items-center justify-between text-xs text-neutral-700">
+                      <span className="w-20 font-medium">Shoulder</span>
+                      <input
+                        type="range"
+                        min={30}
+                        max={70}
+                        value={shoulderPct}
+                        onChange={(e) => setShoulderPct(Number(e.target.value))}
+                        className="flex-1 mx-2 accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
+                      />
+                      <span className="w-8 text-right font-semibold text-neutral-900">
+                        {shoulderPct}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs text-neutral-700">
+                      <span className="w-20 font-medium">Waist</span>
+                      <input
+                        type="range"
+                        min={30}
+                        max={70}
+                        value={waistPct}
+                        onChange={(e) => setWaistPct(Number(e.target.value))}
+                        className="flex-1 mx-2 accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
+                      />
+                      <span className="w-8 text-right font-semibold text-neutral-900">
+                        {waistPct}%
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* TAB: AVATAR */}
+              {activeTab === "avatar" && (
+                <div className="space-y-3">
+                  <div>
+                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                      Model Presentation
+                    </span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {AVATAR_TWINS.map((t) => {
+                        const isSelected = modelType === t.id;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              pushHistory();
+                              setModelType(t.id);
+                              setPresentation(t.presentation);
+                            }}
+                            className={cn(
+                              "rounded-2xl border p-3 text-xs transition-all flex flex-col items-center",
+                              isSelected
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                "text-[10px] font-medium",
+                                isSelected ? "text-neutral-300" : "text-neutral-400",
+                              )}
+                            >
+                              {t.badge}
+                            </span>
+                            <span className="text-xs font-semibold mt-0.5">{t.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                      Runway Pose
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {FASHION_STANCES.map((st) => {
+                        const isSelected = stance === st.id;
+                        return (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => {
+                              pushHistory();
+                              setStance(st.id);
+                            }}
+                            className={cn(
+                              "rounded-xl border px-3 py-2 text-xs transition-all font-medium",
+                              isSelected
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                            )}
+                          >
+                            {st.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: FACE / POSTURE */}
+              {activeTab === "face" && (
+                <div className="space-y-2">
+                  <span className="block text-xs font-medium text-neutral-700">
+                    Fashion Runway Posture
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {FASHION_STANCES.map((st) => {
+                      const isSelected = stance === st.id;
+                      return (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => {
+                            pushHistory();
+                            setStance(st.id);
+                          }}
+                          className={cn(
+                            "rounded-xl border px-3 py-2.5 text-xs transition-all font-medium",
+                            isSelected
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                              : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                          )}
+                        >
+                          {st.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: HAIR */}
+              {activeTab === "hair" && (
+                <div className="space-y-3">
+                  <div>
+                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                      Hairstyle
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {HAIRSTYLES.map((h) => {
+                        const isSelected = hairStyle === h.id;
+                        return (
+                          <button
+                            key={h.id}
+                            type="button"
+                            onClick={() => {
+                              pushHistory();
+                              setHairStyle(h.id);
+                            }}
+                            className={cn(
+                              "rounded-xl border py-2 text-[10px] transition-all font-medium",
+                              isSelected
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                            )}
+                          >
+                            {h.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                      Hair Tint Color
+                    </span>
+                    <div className="flex items-center justify-between px-1">
+                      {HAIR_COLORS.map((c) => {
+                        const isSelected = hairColorHex.toLowerCase() === c.hex.toLowerCase();
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => {
+                              pushHistory();
+                              setHairColorHex(c.hex);
+                            }}
+                            className={cn(
+                              "relative h-7 w-7 rounded-full border border-black/10 transition-transform active:scale-95",
+                              isSelected && "ring-2 ring-neutral-900 ring-offset-2 scale-105",
+                            )}
+                            style={{ backgroundColor: c.hex }}
+                            title={c.label}
+                          >
+                            {isSelected && (
+                              <Check className="absolute inset-0 m-auto h-3 w-3 stroke-[2.5] text-white drop-shadow-xs" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: OUTFIT */}
+              {activeTab === "outfit" && (
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <span className="block text-xs font-medium text-neutral-700">Top Garment</span>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {(["tee", "shirt", "jacket", "none"] as const).map((t) => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => {
+                            pushHistory();
+                            setOutfit((prev) => ({ ...prev, topType: t }));
+                          }}
+                          className={cn(
+                            "rounded-xl border py-1.5 text-xs capitalize transition-all font-medium",
+                            outfit.topType === t
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                              : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                          )}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="block text-xs font-medium text-neutral-700">
+                      Bottom Garment
+                    </span>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {(["trousers", "wide_chinos", "shorts", "none"] as const).map((b) => (
+                        <button
+                          key={b}
+                          type="button"
+                          onClick={() => {
+                            pushHistory();
+                            setOutfit((prev) => ({ ...prev, bottomType: b }));
+                          }}
+                          className={cn(
+                            "rounded-xl border py-1.5 text-[11px] capitalize transition-all font-medium",
+                            outfit.bottomType === b
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                              : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                          )}
+                        >
+                          {b.replace("_", " ")}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <span className="block text-xs font-medium text-neutral-700">
+                      Footwear & Eyewear
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {(["sneakers", "loafers", "none"] as const).map((s) => (
+                        <button
+                          key={s}
+                          type="button"
+                          onClick={() => {
+                            pushHistory();
+                            setOutfit((prev) => ({ ...prev, shoesType: s }));
+                          }}
+                          className={cn(
+                            "flex-1 rounded-xl border py-1.5 text-xs capitalize transition-all font-medium",
+                            outfit.shoesType === s
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                              : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                          )}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          pushHistory();
+                          setEyewear((prev) => (prev === "none" ? "designer_sunglasses" : "none"));
+                        }}
+                        className={cn(
+                          "rounded-xl border px-3 py-1.5 text-xs flex items-center gap-1 transition-all font-medium",
+                          eyewear !== "none"
+                            ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                            : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                        )}
+                        title={
+                          modelType.includes("male")
+                            ? "Glasses mesh female twin only"
+                            : "Toggle eyewear"
+                        }
+                      >
+                        <Glasses className="h-3.5 w-3.5" />
+                        <span>Glasses</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sheet Footer Action: Next/Continue (Apple Pill) */}
+            <div className="border-t border-black/[0.04] p-3 bg-white/80 shrink-0">
+              <button
+                type="button"
+                onClick={handleContinue}
+                className="w-full rounded-full bg-neutral-900 hover:bg-black py-3 text-xs font-medium text-white shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all"
+              >
+                <span>{showSaveButton ? "Save & Apply Look" : "Continue to Outfits"}</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Bottom Category Navigation Bar (Apple / Snapchat Style) */}
+        <div className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-around border-t border-black/[0.06] bg-white/80 backdrop-blur-xl px-2 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-sm">
+          {MOBILE_CATEGORIES.map((t) => {
             const isActive = activeTab === t.id;
             const Icon = t.icon;
             return (
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setActiveTab(t.id)}
+                onClick={() => {
+                  if (activeTab === t.id) {
+                    setIsMobileSheetOpen((prev) => !prev);
+                  } else {
+                    setActiveTab(t.id);
+                    setIsMobileSheetOpen(true);
+                  }
+                }}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1 rounded-full py-1.5 text-xs font-bold border border-ink shadow-2xs transition-all",
+                  "flex flex-1 flex-col items-center justify-center rounded-xl py-1 px-1 transition-all",
                   isActive
-                    ? "bg-[#FFE169] border-2 border-ink font-black shadow-xs"
-                    : "bg-white text-ink",
+                    ? "text-neutral-900 font-semibold"
+                    : "text-neutral-400 hover:text-neutral-700 font-medium",
                 )}
               >
-                <Icon className="h-3.5 w-3.5 stroke-[2.5]" />
-                <span>{t.label}</span>
+                <div
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-full transition-all",
+                    isActive
+                      ? "bg-neutral-900 text-white shadow-xs"
+                      : "bg-transparent text-current",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </div>
+                <span className="text-[10px] mt-0.5">{t.label}</span>
               </button>
             );
           })}
-        </div>
-
-        {/* Mobile Customization Sheet Card */}
-        <div className="bg-white rounded-2xl border-2 border-ink p-3 space-y-2 shadow-xs shrink-0">
-          {activeTab === "body" && (
-            <>
-              {/* Skin Tone Row */}
-              <div>
-                <span className="block text-[11px] font-black text-ink mb-1.5">Skin Tone</span>
-                <div className="flex items-center justify-between">
-                  {SKIN_TONES.map((s) => {
-                    const isSelected = skinToneHex.toLowerCase() === s.hex.toLowerCase();
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => {
-                          pushHistory();
-                          setSkinToneHex(s.hex);
-                        }}
-                        className={cn(
-                          "relative h-7 w-7 rounded-full border-2 border-ink shadow-2xs",
-                          isSelected && "ring-2 ring-[#FFE169] scale-110",
-                        )}
-                        style={{ backgroundColor: s.hex }}
-                        title={s.label}
-                      >
-                        {isSelected && (
-                          <Check className="absolute inset-0 m-auto h-3.5 w-3.5 stroke-[3] text-ink drop-shadow-xs" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Body Frame Row */}
-              <div>
-                <span className="block text-[11px] font-black text-ink mb-1.5">Body Frame</span>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {BODY_FRAMES.map((f) => {
-                    const isSelected = bodyFrame === f.id;
-                    return (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() => {
-                          pushHistory();
-                          setBodyFrame(f.id);
-                          setShoulderPct(50);
-                          setWaistPct(50);
-                        }}
-                        className={cn(
-                          "relative flex flex-col items-center justify-center rounded-xl border py-1.5 transition-all shadow-2xs",
-                          isSelected
-                            ? "border-2 border-ink bg-[#FFE169] font-black"
-                            : "border-ink/40 bg-white font-semibold",
-                        )}
-                      >
-                        {isSelected && (
-                          <span className="absolute top-1 right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-ink text-white">
-                            <Check className="h-2 w-2 stroke-[3]" />
-                          </span>
-                        )}
-                        <BodySilhouetteIcon type={f.id} isSelected={isSelected} small />
-                        <span className="text-[10px] mt-0.5">{f.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-
-          {activeTab === "avatar" && (
-            <div className="space-y-2">
-              <span className="block text-[11px] font-black text-ink">Avatar Twin</span>
-              <div className="grid grid-cols-2 gap-2">
-                {AVATAR_TWINS.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => {
-                      pushHistory();
-                      setModelType(t.id);
-                      setPresentation(t.presentation);
-                    }}
-                    className={cn(
-                      "rounded-xl border py-2 text-xs font-bold transition-all",
-                      modelType === t.id
-                        ? "border-2 border-ink bg-[#FFE169] font-black"
-                        : "border-ink/40 bg-white",
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "hair" && (
-            <div className="space-y-2">
-              <span className="block text-[11px] font-black text-ink">Hairstyle</span>
-              <div className="grid grid-cols-3 gap-1.5">
-                {HAIRSTYLES.slice(0, 6).map((h) => (
-                  <button
-                    key={h.id}
-                    type="button"
-                    onClick={() => {
-                      pushHistory();
-                      setHairStyle(h.id);
-                    }}
-                    className={cn(
-                      "rounded-xl border py-1.5 text-[10px] transition-all",
-                      hairStyle === h.id
-                        ? "border-2 border-ink bg-[#FFE169] font-black"
-                        : "border-ink/40 bg-white",
-                    )}
-                  >
-                    {h.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {activeTab === "outfit" && (
-            <div className="space-y-2">
-              <span className="block text-[11px] font-black text-ink">Quick Fit</span>
-              <div className="grid grid-cols-3 gap-1.5">
-                {(["tee", "shirt", "jacket"] as const).map((t) => (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => {
-                      pushHistory();
-                      setOutfit((prev) => ({ ...prev, topType: t }));
-                    }}
-                    className={cn(
-                      "rounded-xl border py-1.5 text-xs capitalize transition-all",
-                      outfit.topType === t
-                        ? "border-2 border-ink bg-[#FFE169] font-black"
-                        : "border-ink/40 bg-white",
-                    )}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Mobile Bottom Action Bar */}
-        <div className="flex items-center gap-2.5 mt-2 shrink-0">
-          <button
-            type="button"
-            onClick={onBack}
-            className="rounded-full border-2 border-ink bg-white px-6 py-2.5 text-xs font-black text-ink shadow-2xs hover:bg-neutral-100 active:scale-95 transition-transform"
-          >
-            Back
-          </button>
-          <button
-            type="button"
-            onClick={handleContinue}
-            className="flex-1 rounded-full border-2 border-ink bg-[#FF8096] hover:bg-[#ff6c83] py-2.5 text-xs font-black text-ink shadow-2xs flex items-center justify-center gap-1.5 active:scale-95 transition-transform"
-          >
-            <span>Next</span>
-            <ArrowRight className="h-4 w-4 stroke-[2.5]" />
-          </button>
         </div>
       </div>
     </div>
@@ -1237,11 +1599,15 @@ function BodySilhouetteIcon({
   isSelected?: boolean;
   small?: boolean;
 }) {
-  const size = small ? "h-6 w-5" : "h-9 w-7";
+  const size = small ? "h-6 w-5" : "h-8 w-6";
 
   return (
     <svg
-      className={cn(size, "text-ink transition-transform", isSelected && "scale-105")}
+      className={cn(
+        size,
+        "transition-transform",
+        isSelected ? "text-current scale-105" : "text-neutral-700",
+      )}
       viewBox="0 0 24 32"
       fill="none"
       stroke="currentColor"
@@ -1249,7 +1615,7 @@ function BodySilhouetteIcon({
       strokeLinecap="round"
       strokeLinejoin="round"
     >
-      <circle cx="12" cy="5" r="3.2" fill={isSelected ? "#FFE169" : "none"} />
+      <circle cx="12" cy="5" r="3.2" fill={isSelected ? "currentColor" : "none"} />
 
       {type === "slim" && (
         <path
