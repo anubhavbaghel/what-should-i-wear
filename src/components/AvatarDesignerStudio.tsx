@@ -9,10 +9,11 @@ import {
   EyewearType,
   CameraFocusTarget,
   FashionStanceType,
+  FacialExpressionType,
   BodyMorphConfig,
 } from "./ThreeMannequinViewer";
 import { AvatarConfig, BodyFrameType, mapToStandardPreset } from "@/lib/avatar.types";
-import { calculateEffectiveMultipliers, PRESET_BASE_MULTIPLIERS } from "@/lib/avatar-transform";
+import { calculateEffectiveMultipliers } from "@/lib/avatar-transform";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -20,7 +21,6 @@ import {
   Smile,
   Sparkles,
   Shirt,
-  Menu,
   RotateCcw,
   LogOut,
   ArrowRight,
@@ -29,12 +29,16 @@ import {
   ChevronDown,
   ChevronUp,
   Undo2,
+  Redo2,
   ArrowLeft,
   Sliders,
+  Camera,
+  MoreHorizontal,
 } from "lucide-react";
 
-export type StudioTab = "body" | "face" | "hair" | "outfit" | "avatar";
-export type { BodyFrameType };
+export type StudioTab = "avatar" | "body" | "face" | "hair" | "outfit";
+export type MobileSheetState = "collapsed" | "expanded";
+export type { BodyFrameType, FacialExpressionType };
 
 const MOBILE_CATEGORIES: {
   id: StudioTab;
@@ -46,6 +50,17 @@ const MOBILE_CATEGORIES: {
   { id: "face", label: "Face", icon: Smile },
   { id: "hair", label: "Hair", icon: Sparkles },
   { id: "outfit", label: "Outfit", icon: Shirt },
+];
+
+export const FACIAL_EXPRESSIONS: {
+  id: FacialExpressionType;
+  label: string;
+  description: string;
+}[] = [
+  { id: "neutral", label: "Natural Rest", description: "Calm editorial rest" },
+  { id: "smile", label: "Soft Smile", description: "Warm & approachable" },
+  { id: "confident", label: "Runway Smirk", description: "Confident runway attitude" },
+  { id: "editorial", label: "Editorial Chic", description: "Focused fashion gaze" },
 ];
 
 export interface AvatarDesignerStudioProps {
@@ -135,13 +150,8 @@ export const BODY_FRAMES: {
 ];
 
 export const HAIRSTYLES: { id: HairstyleType; label: string }[] = [
-  { id: "wavy_curtains", label: "Wavy Curtains" },
-  { id: "fade", label: "Textured Fade" },
-  { id: "sleek_bob", label: "Editorial Bob" },
-  { id: "high_ponytail", label: "High Ponytail" },
-  { id: "afro_curls", label: "Afro Curls" },
-  { id: "chic_beanie", label: "Chic Beanie" },
-  { id: "none", label: "No Hair" },
+  { id: "wavy_curtains", label: "Natural Volume" },
+  { id: "none", label: "Minimal / Bare" },
 ];
 
 export const HAIR_COLORS = [
@@ -164,14 +174,16 @@ export const FASHION_STANCES: { id: FashionStanceType; label: string }[] = [
 export const AVATAR_TWINS = [
   {
     id: "/models/female-twin.glb",
+    shortLabel: "Female Twin",
     label: "Female Stylized Twin",
-    badge: "✦ Womenswear",
+    badge: "Womenswear",
     presentation: "feminine" as StylePresentationType,
   },
   {
     id: "/models/male-twin.glb",
+    shortLabel: "Male Twin",
     label: "Male Stylized Twin",
-    badge: "✦ Menswear",
+    badge: "Menswear",
     presentation: "masculine" as StylePresentationType,
   },
 ];
@@ -187,6 +199,8 @@ interface StudioHistoryState {
   hairColorHex: string;
   eyewear: EyewearType;
   stance: FashionStanceType;
+  facialExpression: FacialExpressionType;
+  outfit: MannequinOutfitConfig;
 }
 
 export function AvatarDesignerStudio({
@@ -211,8 +225,13 @@ export function AvatarDesignerStudio({
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<StudioTab>("body");
 
-  // Mobile sheet collapse state
-  const [isMobileSheetOpen, setIsMobileSheetOpen] = useState<boolean>(true);
+  // Mobile three-state bottom sheet: "collapsed" | "compact" | "expanded"
+  const [mobileSheetState, setMobileSheetState] = useState<MobileSheetState>("collapsed");
+
+  // Floating Contextual Menus
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const [isActionsMenuOpen, setIsActionsMenuOpen] = useState(false);
+  const [isCameraMenuOpen, setIsCameraMenuOpen] = useState(false);
 
   // Development comparison toggle (A/B testing default vs customized body)
   const [isComparingDefault, setIsComparingDefault] = useState<boolean>(false);
@@ -267,6 +286,9 @@ export function AvatarDesignerStudio({
   const [stance, setStance] = useState<FashionStanceType>(
     initialConfig?.stance || "runway_confident",
   );
+  const [facialExpression, setFacialExpression] = useState<FacialExpressionType>(
+    initialConfig?.facialExpression || "neutral",
+  );
 
   // Outfits
   const [outfit, setOutfit] = useState<MannequinOutfitConfig>(
@@ -284,8 +306,10 @@ export function AvatarDesignerStudio({
   // Camera Focus
   const [cameraFocus, setCameraFocus] = useState<CameraFocusTarget>("full");
 
-  // Undo History Stack
+  // Undo & Redo History Stacks
   const historyRef = useRef<StudioHistoryState[]>([]);
+  const redoRef = useRef<StudioHistoryState[]>([]);
+  const [, setHistoryVersion] = useState(0);
 
   const pushHistory = () => {
     const current: StudioHistoryState = {
@@ -299,13 +323,32 @@ export function AvatarDesignerStudio({
       hairColorHex,
       eyewear,
       stance,
+      facialExpression,
+      outfit: { ...outfit },
     };
     historyRef.current.push(current);
-    if (historyRef.current.length > 20) historyRef.current.shift();
+    if (historyRef.current.length > 25) historyRef.current.shift();
+    redoRef.current = [];
+    setHistoryVersion((v) => v + 1);
   };
 
   const handleUndo = () => {
     if (historyRef.current.length === 0) return;
+    const current: StudioHistoryState = {
+      modelType,
+      skinToneHex,
+      bodyFrame,
+      heightCm,
+      shoulderPct,
+      waistPct,
+      hairStyle,
+      hairColorHex,
+      eyewear,
+      stance,
+      facialExpression,
+      outfit: { ...outfit },
+    };
+    redoRef.current.push(current);
     const prev = historyRef.current.pop()!;
     setModelType(prev.modelType);
     setSkinToneHex(prev.skinToneHex);
@@ -317,6 +360,89 @@ export function AvatarDesignerStudio({
     setHairColorHex(prev.hairColorHex);
     setEyewear(prev.eyewear);
     setStance(prev.stance);
+    setFacialExpression(prev.facialExpression || "neutral");
+    setOutfit(prev.outfit);
+    setHistoryVersion((v) => v + 1);
+  };
+
+  const handleRedo = () => {
+    if (redoRef.current.length === 0) return;
+    const current: StudioHistoryState = {
+      modelType,
+      skinToneHex,
+      bodyFrame,
+      heightCm,
+      shoulderPct,
+      waistPct,
+      hairStyle,
+      hairColorHex,
+      eyewear,
+      stance,
+      facialExpression,
+      outfit: { ...outfit },
+    };
+    historyRef.current.push(current);
+    const next = redoRef.current.pop()!;
+    setModelType(next.modelType);
+    setSkinToneHex(next.skinToneHex);
+    setBodyFrame(next.bodyFrame);
+    setHeightCm(next.heightCm);
+    setShoulderPct(next.shoulderPct);
+    setWaistPct(next.waistPct);
+    setHairStyle(next.hairStyle);
+    setHairColorHex(next.hairColorHex);
+    setEyewear(next.eyewear);
+    setStance(next.stance);
+    setFacialExpression(next.facialExpression || "neutral");
+    setOutfit(next.outfit);
+    setHistoryVersion((v) => v + 1);
+  };
+
+  const handleResetDefaults = () => {
+    pushHistory();
+    setBodyFrame("athletic");
+    setHeightCm(165);
+    setShoulderPct(50);
+    setWaistPct(50);
+    setSkinToneHex("#D59D7B");
+    setHairStyle("wavy_curtains");
+    setHairColorHex("#18181A");
+    setEyewear("none");
+    setStance("runway_confident");
+    setFacialExpression("neutral");
+    setOutfit({
+      topType: "tee",
+      topColor: "#222226",
+      bottomType: "trousers",
+      bottomColor: "#18181A",
+      shoesType: "sneakers",
+      shoesColor: "#6B3A5B",
+    });
+    setIsActionsMenuOpen(false);
+  };
+
+  const canUndo = historyRef.current.length > 0;
+  const canRedo = redoRef.current.length > 0;
+
+  // Touch Drag Gestures on Bottom Sheet Handle
+  const touchStartYRef = useRef<number | null>(null);
+
+  const handleDragTouchStart = (e: React.TouchEvent) => {
+    touchStartYRef.current = e.touches[0].clientY;
+  };
+
+  const handleDragTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartYRef.current === null) return;
+    const deltaY = e.changedTouches[0].clientY - touchStartYRef.current;
+    touchStartYRef.current = null;
+
+    if (deltaY < -25) {
+      // Swipe Up -> Expand
+      setMobileSheetState("expanded");
+    } else if (deltaY > 25) {
+      // Swipe Down -> Collapse
+      setMobileSheetState("collapsed");
+    }
   };
 
   // Deterministic body multipliers calculated from preset and sliders
@@ -352,6 +478,7 @@ export function AvatarDesignerStudio({
     hairColorHex,
     eyewear,
     stance,
+    facialExpression,
     outfit,
   };
 
@@ -385,23 +512,16 @@ export function AvatarDesignerStudio({
     outfit,
     shoulderPct,
     waistPct,
+    facialExpression,
   ]);
 
-  // Restart / Reset action
+  // Restart / Reset action for desktop
   const handleRestart = () => {
     if (onRestart) {
       onRestart();
       return;
     }
-    pushHistory();
-    setBodyFrame("athletic");
-    setHeightCm(165);
-    setShoulderPct(50);
-    setWaistPct(50);
-    setSkinToneHex("#D59D7B");
-    setHairStyle("wavy_curtains");
-    setEyewear("none");
-    setStance("runway_confident");
+    handleResetDefaults();
   };
 
   // Continue action
@@ -428,21 +548,52 @@ export function AvatarDesignerStudio({
     }
   };
 
+  // Category selection handler: toggles expanded/collapsed and sets active tab
+  const handleCategorySelect = (catId: StudioTab) => {
+    if (activeTab === catId) {
+      // Tap active category: toggle between collapsed and expanded
+      setMobileSheetState((prev) => (prev === "expanded" ? "collapsed" : "expanded"));
+    } else {
+      setActiveTab(catId);
+      setMobileSheetState("expanded");
+
+      // Contextual smooth camera focus
+      if (catId === "hair" || catId === "face") {
+        setCameraFocus("face");
+      } else if (catId === "body") {
+        setCameraFocus("torso");
+      } else if (catId === "avatar" || catId === "outfit") {
+        setCameraFocus("full");
+      }
+    }
+  };
+
+  // Close all floating popovers on outside click
+  const closeAllMenus = () => {
+    setIsModelMenuOpen(false);
+    setIsActionsMenuOpen(false);
+    setIsCameraMenuOpen(false);
+  };
+
+  const isAnyMenuOpen = isModelMenuOpen || isActionsMenuOpen || isCameraMenuOpen;
+
+  // Dynamic Camera vertical offset so avatar is framed in visible viewport above sheet
+  const dynamicCameraOffsetY = mobileSheetState === "expanded" ? -0.42 : 0;
+
   return (
     <div
       className={cn(
-        "h-full w-full select-none overflow-hidden bg-[#F8F9FA] text-neutral-900 font-sans",
+        "h-full w-full select-none overflow-hidden bg-[#F7F6F3] text-neutral-900 font-sans",
         className,
       )}
     >
       {/* =========================================================================
-          DESKTOP DEDICATED VIEW (hidden on mobile, visible md+) - APPLE STUDIO MINIMALISM
+          DESKTOP DEDICATED VIEW (hidden on mobile, visible md+) - APPLE STUDIO
          ========================================================================= */}
       <div className="hidden md:flex h-full w-full max-w-[1360px] mx-auto p-4 flex-col justify-center">
         <div className="flex flex-col h-[94dvh] w-full rounded-3xl border border-black/[0.08] bg-white shadow-xl overflow-hidden">
           {/* Top Minimalist Header */}
           <div className="h-14 shrink-0 bg-white/80 backdrop-blur-md border-b border-black/[0.06] px-6 flex items-center justify-between">
-            {/* Left: Section Title */}
             <div className="flex items-center gap-2.5">
               <span className="h-2 w-2 rounded-full bg-neutral-900" />
               <span className="text-sm font-semibold tracking-tight text-neutral-900">
@@ -450,7 +601,6 @@ export function AvatarDesignerStudio({
               </span>
             </div>
 
-            {/* Center: 3 Progress Indicator Pills */}
             <div className="flex items-center gap-1.5">
               {[0, 1, 2].map((i) => (
                 <span
@@ -463,16 +613,15 @@ export function AvatarDesignerStudio({
               ))}
             </div>
 
-            {/* Right: Restart & Exit Buttons */}
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={handleRestart}
+                onClick={handleResetDefaults}
                 className="flex items-center gap-1.5 rounded-full border border-black/5 bg-neutral-100 hover:bg-neutral-200/70 px-3 py-1.5 text-xs font-medium text-neutral-700 transition-all active:scale-95"
-                title="Restart Avatar Customization"
+                title="Reset to Baseline Defaults"
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                <span>Restart</span>
+                <span>Reset</span>
               </button>
               <button
                 type="button"
@@ -488,7 +637,7 @@ export function AvatarDesignerStudio({
 
           {/* Main 2-Column Content Area */}
           <div className="flex-1 min-h-0 flex gap-6 p-6 overflow-hidden">
-            {/* LEFT COLUMN: Interactive 3D Mannequin Viewport */}
+            {/* LEFT COLUMN: 3D Mannequin Viewport */}
             <div className="w-1/2 h-full flex flex-col relative rounded-2xl border border-black/[0.06] bg-neutral-50/60 overflow-hidden">
               <ThreeMannequinViewer
                 modelType={modelType}
@@ -501,15 +650,15 @@ export function AvatarDesignerStudio({
                 eyewear={eyewear}
                 presentation={presentation}
                 stance={stance}
+                facialExpression={facialExpression}
                 outfit={outfit}
                 cameraFocus={cameraFocus}
                 onFocusChange={setCameraFocus}
-                onUndo={historyRef.current.length > 0 ? handleUndo : undefined}
+                onUndo={canUndo ? handleUndo : undefined}
                 showFocusTabs={true}
                 className="w-full h-full bg-transparent"
               />
 
-              {/* Dev A/B Comparison Pill (Bottom Left of 3D Viewport) */}
               <button
                 type="button"
                 onClick={() => setIsComparingDefault((v) => !v)}
@@ -519,7 +668,7 @@ export function AvatarDesignerStudio({
                     ? "bg-neutral-900 text-white"
                     : "bg-white/80 text-neutral-700 hover:bg-white hover:text-neutral-900",
                 )}
-                title="Toggle comparison between default base proportions and custom body morphs"
+                title="Toggle comparison with base defaults"
               >
                 <Eye className="h-3.5 w-3.5" />
                 <span>{isComparingDefault ? "Base Figure" : "Customized"}</span>
@@ -528,14 +677,13 @@ export function AvatarDesignerStudio({
 
             {/* RIGHT COLUMN: Customization Studio Panel */}
             <div className="w-1/2 h-full flex flex-col justify-between overflow-hidden py-1">
-              {/* Studio Header */}
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-2xl font-bold tracking-tight text-neutral-900">
                     Customize Mannequin
                   </h1>
                   <p className="mt-0.5 text-xs text-neutral-500 font-normal">
-                    Adjust your avatar's proportions and style in real time.
+                    Adjust proportions, posture, and wardrobe in real time.
                   </p>
                 </div>
                 <span className="rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200/60 px-2.5 py-0.5 text-[11px] font-medium flex items-center gap-1">
@@ -544,7 +692,6 @@ export function AvatarDesignerStudio({
                 </span>
               </div>
 
-              {/* iOS-Style Category Segmented Pills */}
               <div className="flex items-center gap-1 bg-neutral-100 p-1 rounded-full mt-3 border border-black/[0.04]">
                 {MOBILE_CATEGORIES.map((t) => {
                   const isActive = activeTab === t.id;
@@ -568,11 +715,42 @@ export function AvatarDesignerStudio({
                 })}
               </div>
 
-              {/* Active Tab Customization Card */}
               <div className="flex-1 min-h-0 bg-white rounded-2xl border border-black/[0.06] p-4 flex flex-col justify-around my-3 shadow-xs overflow-hidden">
+                {activeTab === "avatar" && (
+                  <div className="flex flex-col justify-around h-full space-y-3">
+                    <div>
+                      <span className="block text-xs font-medium text-neutral-700 mb-2">
+                        Fashion Runway Posture
+                      </span>
+                      <div className="grid grid-cols-2 gap-2">
+                        {FASHION_STANCES.map((st) => {
+                          const isSelected = stance === st.id;
+                          return (
+                            <button
+                              key={st.id}
+                              type="button"
+                              onClick={() => {
+                                pushHistory();
+                                setStance(st.id);
+                              }}
+                              className={cn(
+                                "rounded-xl border px-3 py-2.5 text-xs transition-all font-medium text-left",
+                                isSelected
+                                  ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                  : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                              )}
+                            >
+                              {st.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === "body" && (
                   <>
-                    {/* 1. Body Frame */}
                     <div>
                       <span className="block text-xs font-medium text-neutral-700 mb-2">
                         Body Frame
@@ -605,7 +783,6 @@ export function AvatarDesignerStudio({
                       </div>
                     </div>
 
-                    {/* 2. Height Slider */}
                     <div>
                       <div className="flex items-center justify-between text-xs font-medium text-neutral-700 mb-1">
                         <span>Height</span>
@@ -618,16 +795,16 @@ export function AvatarDesignerStudio({
                         min={150}
                         max={195}
                         value={heightCm}
+                        onPointerDown={() => {
+                          pushHistory();
+                          if (isComparingDefault) setIsComparingDefault(false);
+                        }}
                         onChange={(e) => setHeightCm(Number(e.target.value))}
+                        style={{ touchAction: "none" }}
                         className="w-full accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
                       />
-                      <div className="flex items-center justify-between text-[10px] text-neutral-400 mt-0.5">
-                        <span>150 cm</span>
-                        <span>195 cm</span>
-                      </div>
                     </div>
 
-                    {/* 3. Skin Tone Swatches */}
                     <div>
                       <span className="block text-xs font-medium text-neutral-700 mb-2">
                         Skin Tone
@@ -659,7 +836,6 @@ export function AvatarDesignerStudio({
                       </div>
                     </div>
 
-                    {/* 4. Proportions */}
                     <div className="pt-2 border-t border-black/[0.04]">
                       <span className="block text-xs font-medium text-neutral-700 mb-1.5">
                         Proportions
@@ -672,7 +848,12 @@ export function AvatarDesignerStudio({
                             min={30}
                             max={70}
                             value={shoulderPct}
+                            onPointerDown={() => {
+                              pushHistory();
+                              if (isComparingDefault) setIsComparingDefault(false);
+                            }}
                             onChange={(e) => setShoulderPct(Number(e.target.value))}
+                            style={{ touchAction: "none" }}
                             className="flex-1 mx-2 accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
                           />
                           <span className="w-10 text-right font-semibold text-neutral-900">
@@ -686,7 +867,12 @@ export function AvatarDesignerStudio({
                             min={30}
                             max={70}
                             value={waistPct}
+                            onPointerDown={() => {
+                              pushHistory();
+                              if (isComparingDefault) setIsComparingDefault(false);
+                            }}
                             onChange={(e) => setWaistPct(Number(e.target.value))}
+                            style={{ touchAction: "none" }}
                             className="flex-1 mx-2 accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
                           />
                           <span className="w-10 text-right font-semibold text-neutral-900">
@@ -698,73 +884,39 @@ export function AvatarDesignerStudio({
                   </>
                 )}
 
-                {activeTab === "avatar" && (
-                  <div className="flex flex-col justify-around h-full space-y-3">
-                    <div>
-                      <span className="block text-xs font-medium text-neutral-700 mb-2">
-                        Digital Twin Presentation
-                      </span>
-                      <div className="grid grid-cols-2 gap-2.5">
-                        {AVATAR_TWINS.map((t) => {
-                          const isSelected = modelType === t.id;
-                          return (
-                            <button
-                              key={t.id}
-                              type="button"
-                              onClick={() => {
-                                pushHistory();
-                                setModelType(t.id);
-                                setPresentation(t.presentation);
-                              }}
-                              className={cn(
-                                "flex flex-col items-center justify-center rounded-2xl border p-3.5 transition-all",
-                                isSelected
-                                  ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
-                                  : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
-                              )}
-                            >
-                              <span
-                                className={cn(
-                                  "text-xs font-medium",
-                                  isSelected ? "text-neutral-300" : "text-neutral-400",
-                                )}
-                              >
-                                {t.badge}
-                              </span>
-                              <span className="text-sm font-semibold mt-0.5">{t.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
                 {activeTab === "face" && (
                   <div className="flex flex-col justify-around h-full space-y-3">
                     <div>
                       <span className="block text-xs font-medium text-neutral-700 mb-2">
-                        Fashion Runway Posture
+                        Facial Expression & Vibe
                       </span>
-                      <div className="grid grid-cols-2 gap-2">
-                        {FASHION_STANCES.map((st) => {
-                          const isSelected = stance === st.id;
+                      <div className="grid grid-cols-2 gap-2.5">
+                        {FACIAL_EXPRESSIONS.map((expr) => {
+                          const isSelected = facialExpression === expr.id;
                           return (
                             <button
-                              key={st.id}
+                              key={expr.id}
                               type="button"
                               onClick={() => {
                                 pushHistory();
-                                setStance(st.id);
+                                setFacialExpression(expr.id);
                               }}
                               className={cn(
-                                "rounded-xl border px-3 py-2.5 text-xs transition-all font-medium",
+                                "rounded-2xl border p-3 transition-all flex flex-col items-start text-left",
                                 isSelected
                                   ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
                                   : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                               )}
                             >
-                              {st.label}
+                              <span className="text-xs font-semibold">{expr.label}</span>
+                              <span
+                                className={cn(
+                                  "text-[10px] mt-0.5",
+                                  isSelected ? "text-neutral-300" : "text-neutral-400",
+                                )}
+                              >
+                                {expr.description}
+                              </span>
                             </button>
                           );
                         })}
@@ -777,9 +929,9 @@ export function AvatarDesignerStudio({
                   <div className="flex flex-col justify-around h-full space-y-3">
                     <div>
                       <span className="block text-xs font-medium text-neutral-700 mb-2">
-                        Hairstyle Silhouette
+                        Hairstyle
                       </span>
-                      <div className="grid grid-cols-3 gap-2">
+                      <div className="grid grid-cols-2 gap-2">
                         {HAIRSTYLES.map((h) => {
                           const isSelected = hairStyle === h.id;
                           return (
@@ -791,7 +943,7 @@ export function AvatarDesignerStudio({
                                 setHairStyle(h.id);
                               }}
                               className={cn(
-                                "rounded-xl border px-2.5 py-2 text-[11px] transition-all font-medium",
+                                "rounded-xl border px-3 py-2 text-xs transition-all font-medium text-left",
                                 isSelected
                                   ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
                                   : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
@@ -879,7 +1031,7 @@ export function AvatarDesignerStudio({
                               setOutfit((prev) => ({ ...prev, bottomType: b }));
                             }}
                             className={cn(
-                              "rounded-xl border py-1.5 text-xs capitalize transition-all font-medium",
+                              "rounded-xl border py-1.5 text-[11px] capitalize transition-all font-medium",
                               outfit.bottomType === b
                                 ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
                                 : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
@@ -916,6 +1068,7 @@ export function AvatarDesignerStudio({
                         ))}
                         <button
                           type="button"
+                          disabled={modelType.includes("male")}
                           onClick={() => {
                             pushHistory();
                             setEyewear((prev) =>
@@ -924,13 +1077,15 @@ export function AvatarDesignerStudio({
                           }}
                           className={cn(
                             "rounded-xl border px-3 py-1.5 text-xs flex items-center gap-1 transition-all font-medium",
-                            eyewear !== "none"
-                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
-                              : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                            modelType.includes("male")
+                              ? "opacity-40 cursor-not-allowed bg-neutral-50 border-black/[0.04] text-neutral-400"
+                              : eyewear !== "none"
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                           )}
                           title={
                             modelType.includes("male")
-                              ? "Glasses mesh female twin only"
+                              ? "Eyewear female twin only"
                               : "Toggle eyewear"
                           }
                         >
@@ -943,7 +1098,6 @@ export function AvatarDesignerStudio({
                 )}
               </div>
 
-              {/* Bottom Action Button (Apple Pill) */}
               <button
                 type="button"
                 onClick={handleContinue}
@@ -958,10 +1112,10 @@ export function AvatarDesignerStudio({
       </div>
 
       {/* =========================================================================
-          MOBILE DEDICATED VIEW (visible on mobile <md, hidden md+) - SNAPCHAT / APPLE MINIMALIST
+          MOBILE DEDICATED VIEW (visible on mobile < md) - RESPONSIVE AVATAR COMPOSITION
          ========================================================================= */}
-      <div className="relative flex md:hidden h-full w-full flex-col overflow-hidden bg-[#F8F9FA]">
-        {/* Full-bleed 3D Mannequin Canvas (Avatar-First Viewport) */}
+      <div className="relative md:hidden h-full w-full overflow-hidden bg-[#FAF8F5]">
+        {/* Layer B: 3D Avatar Viewport (Full-Screen Responsive Focus) */}
         <div className="absolute inset-0 z-0">
           <ThreeMannequinViewer
             modelType={modelType}
@@ -974,8 +1128,10 @@ export function AvatarDesignerStudio({
             eyewear={eyewear}
             presentation={presentation}
             stance={stance}
+            facialExpression={facialExpression}
             outfit={outfit}
             cameraFocus={cameraFocus}
+            sheetState={mobileSheetState}
             onFocusChange={setCameraFocus}
             showFocusTabs={false}
             hideInternalHeader={true}
@@ -983,69 +1139,153 @@ export function AvatarDesignerStudio({
           />
         </div>
 
-        {/* Compact Frosted Floating Top Bar */}
-        <div className="relative z-30 flex items-center justify-between p-3 pt-[max(0.75rem,env(safe-area-inset-top))] pointer-events-none">
-          {/* Left: Back / Exit & Reset */}
-          <div className="flex items-center gap-1.5 pointer-events-auto">
+        {/* Global Backdrop for Open Dropdowns */}
+        {isAnyMenuOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/10 backdrop-blur-xs transition-opacity"
+            onClick={closeAllMenus}
+            onTouchStart={closeAllMenus}
+          />
+        )}
+
+        {/* Layer A: Top Utility Bar (Persistent, Unified Single Row) */}
+        <div className="relative z-50 flex items-center justify-between px-3 pt-[max(0.75rem,env(safe-area-inset-top,0.75rem))] pb-2 pointer-events-none">
+          {/* Left: Back / Exit */}
+          <div className="pointer-events-auto flex items-center">
             {(onBack || onExit) && (
               <button
                 type="button"
                 onClick={onBack || onExit}
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/80 text-neutral-700 shadow-sm backdrop-blur-md transition-all hover:bg-white active:scale-95"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/85 text-neutral-700 shadow-xs backdrop-blur-md transition-all hover:bg-white active:scale-95"
                 aria-label="Back"
                 title="Back"
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
             )}
+          </div>
+
+          {/* Center: Compact Model-Selection Dropdown Menu */}
+          <div className="pointer-events-auto relative">
             <button
               type="button"
-              onClick={handleRestart}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/80 text-neutral-700 shadow-sm backdrop-blur-md transition-all hover:bg-white active:scale-95"
-              aria-label="Reset Avatar"
-              title="Reset Avatar"
+              onClick={() => {
+                setIsModelMenuOpen((prev) => !prev);
+                setIsActionsMenuOpen(false);
+                setIsCameraMenuOpen(false);
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-black/5 bg-white/85 px-3 py-1.5 text-xs font-semibold text-neutral-800 shadow-xs backdrop-blur-md transition-all active:scale-95 hover:bg-white"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
+              <span>{modelType.includes("male") ? "Male Twin" : "Female Twin"}</span>
+              <ChevronDown
+                className={cn(
+                  "h-3.5 w-3.5 text-neutral-400 transition-transform",
+                  isModelMenuOpen && "rotate-180",
+                )}
+              />
             </button>
+
+            {isModelMenuOpen && (
+              <div className="absolute top-11 left-1/2 -translate-x-1/2 w-48 rounded-2xl border border-black/[0.08] bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl transition-all z-50">
+                <span className="block px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                  Select Digital Twin
+                </span>
+                {AVATAR_TWINS.map((t) => {
+                  const isSelected = modelType === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        pushHistory();
+                        setModelType(t.id);
+                        setPresentation(t.presentation);
+                        setIsModelMenuOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-medium transition-all text-left",
+                        isSelected
+                          ? "bg-neutral-900 text-white shadow-xs"
+                          : "text-neutral-700 hover:bg-neutral-100",
+                      )}
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-semibold">{t.shortLabel}</span>
+                        <span
+                          className={cn(
+                            "text-[10px]",
+                            isSelected ? "text-neutral-300" : "text-neutral-400",
+                          )}
+                        >
+                          {t.badge}
+                        </span>
+                      </div>
+                      {isSelected && <Check className="h-3.5 w-3.5 stroke-[2.5]" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
-          {/* Center: Digital Twin Selector (iOS Capsule Pill) */}
-          <div className="pointer-events-auto flex items-center rounded-full border border-black/5 bg-white/80 p-0.5 shadow-sm backdrop-blur-md">
-            {AVATAR_TWINS.map((t) => {
-              const isSelected = modelType === t.id;
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => {
-                    pushHistory();
-                    setModelType(t.id);
-                    setPresentation(t.presentation);
-                  }}
-                  className={cn(
-                    "rounded-full px-3 py-1 text-xs font-medium transition-all",
-                    isSelected
-                      ? "bg-neutral-900 text-white shadow-xs"
-                      : "text-neutral-600 hover:text-neutral-900",
-                  )}
-                >
-                  {t.label}
-                </button>
-              );
-            })}
-          </div>
+          {/* Right: Camera Focus, Undo, Redo, and More Actions Menu */}
+          <div className="pointer-events-auto flex items-center gap-1 relative">
+            {/* Compact Contextual Camera Focus Pill */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCameraMenuOpen((prev) => !prev);
+                  setIsModelMenuOpen(false);
+                  setIsActionsMenuOpen(false);
+                }}
+                className={cn(
+                  "flex h-9 items-center gap-1 rounded-full border border-black/5 bg-white/85 px-2.5 text-xs font-medium text-neutral-700 shadow-xs backdrop-blur-md transition-all active:scale-95 hover:bg-white",
+                  isCameraMenuOpen && "bg-neutral-100",
+                )}
+                aria-label="Camera Focus"
+                title="Camera Focus"
+              >
+                <Camera className="h-3.5 w-3.5 text-neutral-500" />
+                <span className="capitalize text-[11px] hidden sm:inline">{cameraFocus}</span>
+              </button>
 
-          {/* Right: Undo & Comparison Pill */}
-          <div className="flex items-center gap-1.5 pointer-events-auto">
+              {isCameraMenuOpen && (
+                <div className="absolute top-11 right-0 w-32 rounded-2xl border border-black/[0.08] bg-white/95 p-1 shadow-xl backdrop-blur-2xl transition-all z-50 space-y-0.5">
+                  {(["full", "face", "torso", "shoes"] as const).map((f) => {
+                    const isCurrent = cameraFocus === f;
+                    return (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => {
+                          setCameraFocus(f);
+                          setIsCameraMenuOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs capitalize font-medium transition-all text-left",
+                          isCurrent
+                            ? "bg-neutral-900 text-white font-semibold shadow-xs"
+                            : "text-neutral-700 hover:bg-neutral-100",
+                        )}
+                      >
+                        <span>{f}</span>
+                        {isCurrent && <Check className="h-3 w-3 stroke-[2.5]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Undo */}
             <button
               type="button"
               onClick={handleUndo}
-              disabled={historyRef.current.length === 0}
+              disabled={!canUndo}
               className={cn(
-                "flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/80 text-neutral-700 shadow-sm backdrop-blur-md transition-all active:scale-95",
-                historyRef.current.length === 0
-                  ? "opacity-30 cursor-not-allowed"
-                  : "hover:bg-white",
+                "flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/85 text-neutral-700 shadow-xs backdrop-blur-md transition-all active:scale-95",
+                !canUndo ? "opacity-30 cursor-not-allowed" : "hover:bg-white",
               )}
               aria-label="Undo"
               title="Undo"
@@ -1053,95 +1293,215 @@ export function AvatarDesignerStudio({
               <Undo2 className="h-3.5 w-3.5" />
             </button>
 
+            {/* Redo */}
             <button
               type="button"
-              onClick={() => setIsComparingDefault((v) => !v)}
+              onClick={handleRedo}
+              disabled={!canRedo}
               className={cn(
-                "flex h-9 items-center gap-1 rounded-full border border-black/5 px-2.5 text-[11px] font-medium shadow-sm backdrop-blur-md transition-all active:scale-95",
-                isComparingDefault
-                  ? "bg-neutral-900 text-white"
-                  : "bg-white/80 text-neutral-700 hover:bg-white",
+                "flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/85 text-neutral-700 shadow-xs backdrop-blur-md transition-all active:scale-95",
+                !canRedo ? "opacity-30 cursor-not-allowed" : "hover:bg-white",
               )}
-              title="Toggle A/B comparison"
+              aria-label="Redo"
+              title="Redo"
             >
-              <Eye className="h-3.5 w-3.5" />
-              <span>{isComparingDefault ? "Base" : "Custom"}</span>
+              <Redo2 className="h-3.5 w-3.5" />
             </button>
+
+            {/* Secondary Actions (Reset & A/B) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsActionsMenuOpen((prev) => !prev);
+                  setIsModelMenuOpen(false);
+                  setIsCameraMenuOpen(false);
+                }}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-black/5 bg-white/85 text-neutral-700 shadow-xs backdrop-blur-md transition-all hover:bg-white active:scale-95"
+                aria-label="More actions"
+                title="More actions"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+
+              {isActionsMenuOpen && (
+                <div className="absolute top-11 right-0 w-44 rounded-2xl border border-black/[0.08] bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl transition-all z-50 space-y-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsComparingDefault((v) => !v);
+                      setIsActionsMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 transition-all text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-3.5 w-3.5" />
+                      <span>A/B Compare</span>
+                    </div>
+                    <span
+                      className={cn(
+                        "px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase",
+                        isComparingDefault
+                          ? "bg-neutral-900 text-white"
+                          : "bg-neutral-100 text-neutral-600",
+                      )}
+                    >
+                      {isComparingDefault ? "Base" : "Custom"}
+                    </span>
+                  </button>
+
+                  <div className="h-px bg-neutral-100" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleResetDefaults();
+                      setIsActionsMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 transition-all text-left"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Reset to Defaults</span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Floating Camera Focus Controls */}
-        <div className="absolute top-[58px] left-3 z-20 pointer-events-auto">
-          <div className="flex items-center gap-0.5 rounded-full border border-black/5 bg-white/80 p-0.5 shadow-sm backdrop-blur-md">
-            {(["full", "face", "torso", "shoes"] as const).map((f) => {
-              const isCurrent = cameraFocus === f;
-              return (
-                <button
-                  key={f}
-                  type="button"
-                  onClick={() => setCameraFocus(f)}
-                  className={cn(
-                    "rounded-full px-2.5 py-0.5 text-[11px] font-medium capitalize transition-all",
-                    isCurrent
-                      ? "bg-neutral-900 text-white shadow-xs"
-                      : "text-neutral-600 hover:text-neutral-900 hover:bg-black/5",
-                  )}
-                >
-                  {f}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Collapsed Expand-Pill Affordance (Snapchat Bitmoji Style) */}
-        {!isMobileSheetOpen && (
-          <div className="absolute bottom-[66px] inset-x-0 z-20 flex justify-center pointer-events-none">
-            <button
-              type="button"
-              onClick={() => setIsMobileSheetOpen(true)}
-              className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-neutral-900/90 text-white px-4 py-2 text-xs font-medium shadow-lg backdrop-blur-md transition-all active:scale-95 hover:bg-black"
-            >
-              <ChevronUp className="h-3.5 w-3.5" />
-              <span>Customize {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}</span>
-            </button>
-          </div>
-        )}
-
-        {/* Collapsible Customization Sheet (Apple iOS Style) */}
-        {isMobileSheetOpen && (
+        {/* =========================================================================
+            LAYER C & D: UNIFIED BOTTOM CUSTOMIZATION PANEL
+            Navigation is at the TOP of the customization panel.
+            Two States:
+              - COLLAPSED: Model takes full view height. Only top navigation bar rests at screen bottom.
+              - EXPANDED (46vh): Customization panel expands, scrollable controls below navigation,
+                                 and 3D model scales down so its FULL HEIGHT is visible above.
+           ========================================================================= */}
+        <div className="fixed bottom-0 inset-x-0 z-40 flex flex-col items-center pointer-events-none">
           <div
-            className="absolute bottom-[64px] inset-x-2.5 z-20 max-h-[48vh] flex flex-col rounded-[28px] border border-black/[0.08] bg-white/95 backdrop-blur-2xl shadow-2xl overflow-hidden transition-all duration-300 ease-in-out pointer-events-auto"
+            className={cn(
+              "w-full max-w-lg rounded-t-[28px] border-t border-x border-black/[0.08] bg-white/95 backdrop-blur-2xl shadow-[0_-8px_32px_rgba(0,0,0,0.08)] overflow-hidden transition-all duration-300 ease-in-out pointer-events-auto flex flex-col",
+              mobileSheetState === "collapsed" &&
+                "max-h-[72px] pb-[max(0.5rem,env(safe-area-inset-bottom,0.5rem))]",
+              mobileSheetState === "expanded" &&
+                "h-[46vh] max-h-[48vh] min-h-[340px] pb-[max(0.5rem,env(safe-area-inset-bottom,0.5rem))]",
+            )}
             onTouchStart={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            {/* Grab / Drag Bar Handle */}
-            <div className="w-9 h-1 rounded-full bg-neutral-300 mx-auto my-2 shrink-0" />
+            {/* Top Drag Handle Bar */}
+            <div
+              className="w-full pt-2 pb-1.5 flex justify-center cursor-pointer select-none active:opacity-60 transition-opacity shrink-0"
+              onTouchStart={handleDragTouchStart}
+              onTouchEnd={handleDragTouchEnd}
+              onClick={() => {
+                setMobileSheetState((prev) => (prev === "expanded" ? "collapsed" : "expanded"));
+              }}
+              title={
+                mobileSheetState === "collapsed" ? "Tap to expand customization" : "Tap to collapse"
+              }
+            >
+              <div className="w-10 h-1 rounded-full bg-neutral-300/80" />
+            </div>
 
-            {/* Sheet Header */}
-            <div className="flex items-center justify-between px-4 pb-2 border-b border-black/[0.04] shrink-0">
-              <span className="text-xs font-semibold uppercase tracking-wider text-neutral-500">
-                {activeTab}
-              </span>
+            {/* Navigation Panel (AT THE TOP OF THE CUSTOMIZATION PANEL) */}
+            <div className="w-full px-3 pb-2 pt-0.5 border-b border-black/[0.04] flex items-center justify-between shrink-0">
+              <div className="flex-1 flex items-center justify-between gap-1">
+                {MOBILE_CATEGORIES.map((t) => {
+                  const isActive = activeTab === t.id && mobileSheetState === "expanded";
+                  const Icon = t.icon;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => handleCategorySelect(t.id)}
+                      className={cn(
+                        "flex flex-1 flex-col items-center justify-center rounded-xl py-1 px-1 transition-all",
+                        isActive
+                          ? "text-neutral-900 font-semibold"
+                          : "text-neutral-400 hover:text-neutral-700 font-medium",
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "flex h-7 w-7 items-center justify-center rounded-full transition-all",
+                          isActive
+                            ? "bg-neutral-900 text-white shadow-xs"
+                            : "bg-transparent text-current",
+                        )}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="text-[10px] mt-0.5 leading-none">{t.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Collapse / Expand Toggle Button */}
               <button
                 type="button"
-                onClick={() => setIsMobileSheetOpen(false)}
-                className="flex h-6 w-6 items-center justify-center rounded-full bg-neutral-100 text-neutral-500 hover:text-neutral-900 transition-colors"
-                title="Collapse controls"
-                aria-label="Collapse controls"
+                onClick={() => {
+                  setMobileSheetState((prev) => (prev === "expanded" ? "collapsed" : "expanded"));
+                }}
+                className="ml-2 flex h-7 w-7 items-center justify-center rounded-full bg-neutral-100 hover:bg-neutral-200/80 text-neutral-600 transition-colors shrink-0"
+                title={mobileSheetState === "expanded" ? "Collapse panel" : "Expand panel"}
+                aria-label="Toggle panel"
               >
-                <ChevronDown className="h-3.5 w-3.5" />
+                {mobileSheetState === "expanded" ? (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                )}
               </button>
             </div>
 
-            {/* Scrollable Sheet Content */}
-            <div className="flex-1 overflow-y-auto p-3.5 space-y-4 overscroll-contain">
-              {/* TAB: BODY */}
+            {/* Scrollable Customization Content Area (Visible when expanded) */}
+            <div
+              className={cn(
+                "w-full flex-1 overflow-y-auto px-4 py-3 space-y-3.5 overscroll-contain transition-opacity duration-200 pb-8",
+                mobileSheetState === "collapsed" && "hidden opacity-0 pointer-events-none",
+                mobileSheetState === "expanded" && "block opacity-100",
+              )}
+            >
+              {/* 1. TAB: AVATAR (Runway Stances) */}
+              {activeTab === "avatar" && (
+                <div className="space-y-2">
+                  <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                    Runway Posture
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {FASHION_STANCES.map((st) => {
+                      const isSelected = stance === st.id;
+                      return (
+                        <button
+                          key={st.id}
+                          type="button"
+                          onClick={() => {
+                            pushHistory();
+                            setStance(st.id);
+                          }}
+                          className={cn(
+                            "rounded-xl border px-3 py-2 text-xs transition-all font-medium text-left",
+                            isSelected
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
+                              : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                          )}
+                        >
+                          {st.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* 2. TAB: BODY (Frame, Height, Skin, Proportions) */}
               {activeTab === "body" && (
                 <>
-                  {/* Body Frame Presets */}
+                  {/* Sleek, Low-Profile Body Frame Selector */}
                   <div>
-                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                    <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider mb-1.5">
                       Body Frame
                     </span>
                     <div className="grid grid-cols-4 gap-1.5">
@@ -1158,14 +1518,14 @@ export function AvatarDesignerStudio({
                               setWaistPct(50);
                             }}
                             className={cn(
-                              "relative flex flex-col items-center justify-center rounded-2xl py-2 px-1 transition-all border",
+                              "flex items-center justify-center gap-1.5 rounded-xl py-2 px-1 transition-all border text-xs font-medium",
                               isSelected
-                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
                                 : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                             )}
                           >
                             <BodySilhouetteIcon type={f.id} isSelected={isSelected} small />
-                            <span className="text-[10px] mt-1 font-medium">{f.label}</span>
+                            <span className="text-[11px] capitalize">{f.label}</span>
                           </button>
                         );
                       })}
@@ -1183,18 +1543,19 @@ export function AvatarDesignerStudio({
                       min={150}
                       max={195}
                       value={heightCm}
+                      onPointerDown={() => {
+                        pushHistory();
+                        if (isComparingDefault) setIsComparingDefault(false);
+                      }}
                       onChange={(e) => setHeightCm(Number(e.target.value))}
+                      style={{ touchAction: "none" }}
                       className="w-full accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
                     />
-                    <div className="flex items-center justify-between text-[10px] text-neutral-400 mt-0.5">
-                      <span>150 cm</span>
-                      <span>195 cm</span>
-                    </div>
                   </div>
 
                   {/* Skin Tone Swatches */}
                   <div>
-                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                    <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider mb-1.5">
                       Skin Tone
                     </span>
                     <div className="flex items-center justify-between px-1">
@@ -1225,16 +1586,23 @@ export function AvatarDesignerStudio({
                   </div>
 
                   {/* Proportions Sliders */}
-                  <div className="space-y-2.5 pt-2 border-t border-black/[0.04]">
-                    <span className="block text-xs font-medium text-neutral-700">Proportions</span>
+                  <div className="space-y-2 pt-2 border-t border-black/[0.04]">
+                    <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                      Proportions
+                    </span>
                     <div className="flex items-center justify-between text-xs text-neutral-700">
-                      <span className="w-20 font-medium">Shoulder</span>
+                      <span className="w-16 font-medium">Shoulder</span>
                       <input
                         type="range"
                         min={30}
                         max={70}
                         value={shoulderPct}
+                        onPointerDown={() => {
+                          pushHistory();
+                          if (isComparingDefault) setIsComparingDefault(false);
+                        }}
                         onChange={(e) => setShoulderPct(Number(e.target.value))}
+                        style={{ touchAction: "none" }}
                         className="flex-1 mx-2 accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
                       />
                       <span className="w-8 text-right font-semibold text-neutral-900">
@@ -1242,13 +1610,18 @@ export function AvatarDesignerStudio({
                       </span>
                     </div>
                     <div className="flex items-center justify-between text-xs text-neutral-700">
-                      <span className="w-20 font-medium">Waist</span>
+                      <span className="w-16 font-medium">Waist</span>
                       <input
                         type="range"
                         min={30}
                         max={70}
                         value={waistPct}
+                        onPointerDown={() => {
+                          pushHistory();
+                          if (isComparingDefault) setIsComparingDefault(false);
+                        }}
                         onChange={(e) => setWaistPct(Number(e.target.value))}
+                        style={{ touchAction: "none" }}
                         className="flex-1 mx-2 accent-neutral-900 h-1.5 rounded-full cursor-pointer bg-neutral-200"
                       />
                       <span className="w-8 text-right font-semibold text-neutral-900">
@@ -1259,103 +1632,39 @@ export function AvatarDesignerStudio({
                 </>
               )}
 
-              {/* TAB: AVATAR */}
-              {activeTab === "avatar" && (
-                <div className="space-y-3">
-                  <div>
-                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
-                      Model Presentation
-                    </span>
-                    <div className="grid grid-cols-2 gap-2">
-                      {AVATAR_TWINS.map((t) => {
-                        const isSelected = modelType === t.id;
-                        return (
-                          <button
-                            key={t.id}
-                            type="button"
-                            onClick={() => {
-                              pushHistory();
-                              setModelType(t.id);
-                              setPresentation(t.presentation);
-                            }}
-                            className={cn(
-                              "rounded-2xl border p-3 text-xs transition-all flex flex-col items-center",
-                              isSelected
-                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
-                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "text-[10px] font-medium",
-                                isSelected ? "text-neutral-300" : "text-neutral-400",
-                              )}
-                            >
-                              {t.badge}
-                            </span>
-                            <span className="text-xs font-semibold mt-0.5">{t.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  <div>
-                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
-                      Runway Pose
-                    </span>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {FASHION_STANCES.map((st) => {
-                        const isSelected = stance === st.id;
-                        return (
-                          <button
-                            key={st.id}
-                            type="button"
-                            onClick={() => {
-                              pushHistory();
-                              setStance(st.id);
-                            }}
-                            className={cn(
-                              "rounded-xl border px-3 py-2 text-xs transition-all font-medium",
-                              isSelected
-                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
-                                : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
-                            )}
-                          >
-                            {st.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB: FACE / POSTURE */}
+              {/* 3. TAB: FACE (ARKit Blendshape Expressions) */}
               {activeTab === "face" && (
                 <div className="space-y-2">
-                  <span className="block text-xs font-medium text-neutral-700">
-                    Fashion Runway Posture
+                  <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                    Facial Vibe & Expression
                   </span>
                   <div className="grid grid-cols-2 gap-2">
-                    {FASHION_STANCES.map((st) => {
-                      const isSelected = stance === st.id;
+                    {FACIAL_EXPRESSIONS.map((expr) => {
+                      const isSelected = facialExpression === expr.id;
                       return (
                         <button
-                          key={st.id}
+                          key={expr.id}
                           type="button"
                           onClick={() => {
                             pushHistory();
-                            setStance(st.id);
+                            setFacialExpression(expr.id);
                           }}
                           className={cn(
-                            "rounded-xl border px-3 py-2.5 text-xs transition-all font-medium",
+                            "rounded-xl border p-2.5 transition-all flex flex-col items-start text-left",
                             isSelected
-                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
                               : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                           )}
                         >
-                          {st.label}
+                          <span className="text-xs font-semibold">{expr.label}</span>
+                          <span
+                            className={cn(
+                              "text-[10px] mt-0.5",
+                              isSelected ? "text-neutral-300" : "text-neutral-400",
+                            )}
+                          >
+                            {expr.description}
+                          </span>
                         </button>
                       );
                     })}
@@ -1363,14 +1672,14 @@ export function AvatarDesignerStudio({
                 </div>
               )}
 
-              {/* TAB: HAIR */}
+              {/* 4. TAB: HAIR (Hairstyles & Tint Colors) */}
               {activeTab === "hair" && (
                 <div className="space-y-3">
                   <div>
-                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                    <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider mb-1.5">
                       Hairstyle
                     </span>
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <div className="grid grid-cols-2 gap-2">
                       {HAIRSTYLES.map((h) => {
                         const isSelected = hairStyle === h.id;
                         return (
@@ -1382,9 +1691,9 @@ export function AvatarDesignerStudio({
                               setHairStyle(h.id);
                             }}
                             className={cn(
-                              "rounded-xl border py-2 text-[10px] transition-all font-medium",
+                              "rounded-xl border py-2 px-3 text-xs transition-all font-medium text-left",
                               isSelected
-                                ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                                ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
                                 : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                             )}
                           >
@@ -1396,7 +1705,7 @@ export function AvatarDesignerStudio({
                   </div>
 
                   <div>
-                    <span className="block text-xs font-medium text-neutral-700 mb-1.5">
+                    <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider mb-1.5">
                       Hair Tint Color
                     </span>
                     <div className="flex items-center justify-between px-1">
@@ -1428,11 +1737,13 @@ export function AvatarDesignerStudio({
                 </div>
               )}
 
-              {/* TAB: OUTFIT */}
+              {/* 5. TAB: OUTFIT (Tops, Bottoms, Footwear, Eyewear) */}
               {activeTab === "outfit" && (
                 <div className="space-y-3">
                   <div className="space-y-1">
-                    <span className="block text-xs font-medium text-neutral-700">Top Garment</span>
+                    <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                      Top Garment
+                    </span>
                     <div className="grid grid-cols-4 gap-1.5">
                       {(["tee", "shirt", "jacket", "none"] as const).map((t) => (
                         <button
@@ -1445,7 +1756,7 @@ export function AvatarDesignerStudio({
                           className={cn(
                             "rounded-xl border py-1.5 text-xs capitalize transition-all font-medium",
                             outfit.topType === t
-                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
                               : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                           )}
                         >
@@ -1456,7 +1767,7 @@ export function AvatarDesignerStudio({
                   </div>
 
                   <div className="space-y-1">
-                    <span className="block text-xs font-medium text-neutral-700">
+                    <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
                       Bottom Garment
                     </span>
                     <div className="grid grid-cols-4 gap-1.5">
@@ -1471,7 +1782,7 @@ export function AvatarDesignerStudio({
                           className={cn(
                             "rounded-xl border py-1.5 text-[11px] capitalize transition-all font-medium",
                             outfit.bottomType === b
-                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
                               : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                           )}
                         >
@@ -1482,8 +1793,8 @@ export function AvatarDesignerStudio({
                   </div>
 
                   <div className="space-y-1">
-                    <span className="block text-xs font-medium text-neutral-700">
-                      Footwear & Eyewear
+                    <span className="block text-[11px] font-medium text-neutral-500 uppercase tracking-wider">
+                      Footwear & Accessories
                     </span>
                     <div className="flex items-center gap-1.5">
                       {(["sneakers", "loafers", "none"] as const).map((s) => (
@@ -1497,7 +1808,7 @@ export function AvatarDesignerStudio({
                           className={cn(
                             "flex-1 rounded-xl border py-1.5 text-xs capitalize transition-all font-medium",
                             outfit.shoesType === s
-                              ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
                               : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                           )}
                         >
@@ -1506,83 +1817,32 @@ export function AvatarDesignerStudio({
                       ))}
                       <button
                         type="button"
+                        disabled={modelType.includes("male")}
                         onClick={() => {
                           pushHistory();
                           setEyewear((prev) => (prev === "none" ? "designer_sunglasses" : "none"));
                         }}
                         className={cn(
                           "rounded-xl border px-3 py-1.5 text-xs flex items-center gap-1 transition-all font-medium",
-                          eyewear !== "none"
-                            ? "bg-neutral-900 text-white border-neutral-900 shadow-sm"
-                            : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
+                          modelType.includes("male")
+                            ? "opacity-40 cursor-not-allowed bg-neutral-50 border-black/[0.04] text-neutral-400"
+                            : eyewear !== "none"
+                              ? "bg-neutral-900 text-white border-neutral-900 shadow-xs"
+                              : "bg-neutral-50/80 hover:bg-neutral-100 border-black/[0.04] text-neutral-700",
                         )}
                         title={
-                          modelType.includes("male")
-                            ? "Glasses mesh female twin only"
-                            : "Toggle eyewear"
+                          modelType.includes("male") ? "Eyewear female twin only" : "Toggle eyewear"
                         }
                       >
                         <Glasses className="h-3.5 w-3.5" />
-                        <span>Glasses</span>
+                        <span>{modelType.includes("male") ? "Glasses (Female)" : "Glasses"}</span>
                       </button>
                     </div>
                   </div>
                 </div>
               )}
             </div>
-
-            {/* Sheet Footer Action: Next/Continue (Apple Pill) */}
-            <div className="border-t border-black/[0.04] p-3 bg-white/80 shrink-0">
-              <button
-                type="button"
-                onClick={handleContinue}
-                className="w-full rounded-full bg-neutral-900 hover:bg-black py-3 text-xs font-medium text-white shadow-sm flex items-center justify-center gap-1.5 active:scale-95 transition-all"
-              >
-                <span>{showSaveButton ? "Save & Apply Look" : "Continue to Outfits"}</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
           </div>
-        )}
-
-        {/* Bottom Category Navigation Bar (Apple / Snapchat Style) */}
-        <div className="absolute bottom-0 inset-x-0 z-30 flex items-center justify-around border-t border-black/[0.06] bg-white/80 backdrop-blur-xl px-2 py-1.5 pb-[max(0.5rem,env(safe-area-inset-bottom))] shadow-sm">
-          {MOBILE_CATEGORIES.map((t) => {
-            const isActive = activeTab === t.id;
-            const Icon = t.icon;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => {
-                  if (activeTab === t.id) {
-                    setIsMobileSheetOpen((prev) => !prev);
-                  } else {
-                    setActiveTab(t.id);
-                    setIsMobileSheetOpen(true);
-                  }
-                }}
-                className={cn(
-                  "flex flex-1 flex-col items-center justify-center rounded-xl py-1 px-1 transition-all",
-                  isActive
-                    ? "text-neutral-900 font-semibold"
-                    : "text-neutral-400 hover:text-neutral-700 font-medium",
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex h-8 w-8 items-center justify-center rounded-full transition-all",
-                    isActive
-                      ? "bg-neutral-900 text-white shadow-xs"
-                      : "bg-transparent text-current",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                </div>
-                <span className="text-[10px] mt-0.5">{t.label}</span>
-              </button>
-            );
-          })}
         </div>
       </div>
     </div>

@@ -18,20 +18,18 @@ export type BuildType = "slim" | "neutral" | "curvy";
 export type BodyFrameType = "slim" | "athletic" | "curvy" | "average";
 export type CameraFocusTarget = "full" | "face" | "torso" | "shoes";
 export type FashionStanceType =
-  | "runway_confident"
-  | "casual_streetwear"
-  | "editorial_chic"
-  | "neutral_pose";
+  "runway_confident" | "casual_streetwear" | "editorial_chic" | "neutral_pose";
 
 export type TopGarmentType = "none" | "tee" | "shirt" | "jacket";
 export type BottomGarmentType = "none" | "trousers" | "wide_chinos" | "shorts";
 export type ShoesGarmentType = "none" | "sneakers" | "loafers";
+export type FacialExpressionType = "neutral" | "smile" | "confident" | "editorial";
 
 export interface BodyMorphConfig {
   shoulderWidth?: number; // 0.75 to 1.35, default 1.0
-  chestBust?: number;     // 0.80 to 1.30, default 1.0
-  waistScale?: number;    // 0.75 to 1.35, default 1.0
-  hipWidth?: number;      // 0.80 to 1.35, default 1.0
+  chestBust?: number; // 0.80 to 1.30, default 1.0
+  waistScale?: number; // 0.75 to 1.35, default 1.0
+  hipWidth?: number; // 0.80 to 1.35, default 1.0
 }
 
 export interface MannequinOutfitConfig {
@@ -59,6 +57,7 @@ export interface AvatarConfig {
   hairColorHex?: string;
   eyewear?: string;
   stance?: FashionStanceType;
+  facialExpression?: FacialExpressionType;
   outfit?: MannequinOutfitConfig;
 }
 
@@ -93,7 +92,10 @@ export const avatarConfigSchema = z.object({
   hairStyle: z.string().optional(),
   hairColorHex: z.string().optional(),
   eyewear: z.string().optional(),
-  stance: z.enum(["runway_confident", "casual_streetwear", "editorial_chic", "neutral_pose"]).optional(),
+  stance: z
+    .enum(["runway_confident", "casual_streetwear", "editorial_chic", "neutral_pose"])
+    .optional(),
+  facialExpression: z.enum(["neutral", "smile", "confident", "editorial"]).optional(),
   outfit: mannequinOutfitSchema.optional(),
 });
 
@@ -103,7 +105,7 @@ export const avatarConfigSchema = z.object({
  */
 export function mapToStandardPreset(
   bodyFrame?: BodyFrameType | string,
-  skinToneHex?: string
+  skinToneHex?: string,
 ): MannequinPreset {
   let buildKey: "slim" | "neutral" | "curvy" = "neutral";
   if (bodyFrame === "slim") buildKey = "slim";

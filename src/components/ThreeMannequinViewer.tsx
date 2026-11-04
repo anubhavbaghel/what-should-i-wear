@@ -12,6 +12,7 @@ import {
   ShoesGarmentType,
   CameraFocusTarget,
   FashionStanceType,
+  FacialExpressionType,
   BuildType,
   StylePresentation as StylePresentationType,
 } from "@/lib/avatar.types";
@@ -34,6 +35,7 @@ export type {
   BodyMorphConfig,
   CameraFocusTarget,
   FashionStanceType,
+  FacialExpressionType,
 };
 
 export type ModelPresetType =
@@ -59,6 +61,9 @@ export interface ThreeMannequinViewerProps {
   onFocusChange?: (focus: CameraFocusTarget) => void;
   showFocusTabs?: boolean;
   hideInternalHeader?: boolean;
+  cameraOffsetY?: number;
+  facialExpression?: FacialExpressionType;
+  sheetState?: "collapsed" | "expanded";
 }
 
 export function ThreeMannequinViewer({
@@ -81,6 +86,9 @@ export function ThreeMannequinViewer({
   onFocusChange,
   showFocusTabs = true,
   hideInternalHeader = false,
+  cameraOffsetY = 0,
+  facialExpression = "neutral",
+  sheetState = "collapsed",
 }: ThreeMannequinViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoRotate, setAutoRotate] = useState(autoRotateDefault);
@@ -115,9 +123,15 @@ export function ThreeMannequinViewer({
   }>({ eyes: [] });
   const animFrameRef = useRef<number | null>(null);
 
-  // Orbit, Camera Target & Zoom state (Snapchat dynamic auto-framing)
+  // Orbit, Camera Target & Zoom state (Responsive Avatar Framing Engine)
   const rotationRef = useRef({ y: 0, targetY: 0, pitch: 0.1, targetPitch: 0.1 });
-  const zoomRef = useRef({ distance: 4.0, targetDistance: 4.0, min: 2.0, max: 6.2 });
+  const zoomRef = useRef({ distance: 4.0, targetDistance: 4.0, min: 2.0, max: 6.5 });
+  const userZoomFactorRef = useRef<number>(1.0);
+  const baseFramingRef = useRef<{ targetY: number; distance: number }>({
+    targetY: 0.05,
+    distance: 4.0,
+  });
+
   const cameraTargetRef = useRef<{
     y: number;
     targetY: number;
@@ -137,29 +151,83 @@ export function ThreeMannequinViewer({
     setActiveFocus(cameraFocus);
   }, [cameraFocus]);
 
-  // Dynamic Camera Auto-Framing when category focus changes
+  // Responsive Avatar Framing derived from actual model dimensions, sheet state, and gender proportions
   useEffect(() => {
-    const target = cameraTargetRef.current;
-    switch (activeFocus) {
-      case "face":
-        target.targetY = 0.85;
-        target.targetDistance = 2.4;
-        break;
-      case "torso":
-        target.targetY = 0.35;
-        target.targetDistance = 3.2;
-        break;
-      case "shoes":
-        target.targetY = -0.92;
-        target.targetDistance = 2.5;
-        break;
-      case "full":
-      default:
-        target.targetY = 0.05;
-        target.targetDistance = 4.0;
-        break;
+    const isMale =
+      modelType === "male" ||
+      modelType === "/models/male-twin.glb" ||
+      modelType === "soldier" ||
+      modelType === "xbot" ||
+      (modelType !== "female" &&
+        modelType !== "/models/female-twin.glb" &&
+        presentation === "masculine");
+
+    const modelMidpointY = -1.12 + 1.12 * heightScale;
+    const headY = -1.12 + 1.95 * heightScale;
+    const torsoY = -1.12 + 1.45 * heightScale;
+    const shoesY = -0.92;
+    const maleDistFactor = isMale ? 1.08 : 1.0;
+
+    let baseTargetY = modelMidpointY - 0.05;
+    let baseDistance = 4.15 * maleDistFactor * Math.max(1.0, heightScale);
+
+    if (sheetState === "expanded") {
+      // Expanded state: Customization panel takes 45-48% vh at bottom.
+      // Scale down and reposition model upward so its FULL HEIGHT (head to footwear on pedestal) is completely visible.
+      switch (activeFocus) {
+        case "face":
+          baseTargetY = headY - 0.4;
+          baseDistance = 2.3 * maleDistFactor;
+          break;
+        case "torso":
+          baseTargetY = torsoY - 0.42;
+          baseDistance = 3.1 * maleDistFactor;
+          break;
+        case "shoes":
+          baseTargetY = shoesY - 0.3;
+          baseDistance = 2.6 * maleDistFactor;
+          break;
+        case "full":
+        default:
+          baseTargetY = modelMidpointY - 0.46;
+          baseDistance = 5.05 * maleDistFactor * Math.max(1.0, heightScale);
+          break;
+      }
+    } else {
+      // Collapsed state (or desktop): full-body unobstructed. Model takes full view height.
+      switch (activeFocus) {
+        case "face":
+          baseTargetY = headY;
+          baseDistance = 2.4 * maleDistFactor;
+          break;
+        case "torso":
+          baseTargetY = torsoY;
+          baseDistance = 3.2 * maleDistFactor;
+          break;
+        case "shoes":
+          baseTargetY = shoesY;
+          baseDistance = 2.5 * maleDistFactor;
+          break;
+        case "full":
+        default:
+          baseTargetY = modelMidpointY - 0.05;
+          baseDistance = 4.15 * maleDistFactor * Math.max(1.0, heightScale);
+          break;
+      }
     }
-  }, [activeFocus]);
+
+    if (cameraOffsetY) {
+      baseTargetY += cameraOffsetY;
+    }
+
+    baseFramingRef.current = { targetY: baseTargetY, distance: baseDistance };
+
+    cameraTargetRef.current.targetY = baseTargetY;
+    cameraTargetRef.current.targetDistance = Math.max(
+      zoomRef.current.min,
+      Math.min(zoomRef.current.max, baseDistance * userZoomFactorRef.current),
+    );
+  }, [activeFocus, sheetState, heightScale, modelType, presentation, cameraOffsetY]);
 
   // 3D Scene Initialization
   useEffect(() => {
@@ -366,9 +434,41 @@ export function ThreeMannequinViewer({
         const inf = modMeshes.head.morphTargetInfluences;
         if (dict.eyeBlinkLeft !== undefined) inf[dict.eyeBlinkLeft] = blinkVal;
         if (dict.eyeBlinkRight !== undefined) inf[dict.eyeBlinkRight] = blinkVal;
-        if (dict.mouthSmileLeft !== undefined) inf[dict.mouthSmileLeft] = 0.16;
-        if (dict.mouthSmileRight !== undefined) inf[dict.mouthSmileRight] = 0.16;
-        if (dict.mouthSmile !== undefined) inf[dict.mouthSmile] = 0.18;
+
+        let sLeft = 0.12;
+        let sRight = 0.12;
+        let sCenter = 0.14;
+        let browUp = 0.0;
+        let squint = 0.0;
+        let dimple = 0.0;
+
+        if (facialExpression === "smile") {
+          sLeft = 0.38;
+          sRight = 0.38;
+          sCenter = 0.4;
+          squint = 0.12;
+        } else if (facialExpression === "confident") {
+          sLeft = 0.1;
+          sRight = 0.44;
+          sCenter = 0.15;
+          dimple = 0.3;
+        } else if (facialExpression === "editorial") {
+          sLeft = 0.0;
+          sRight = 0.0;
+          sCenter = 0.0;
+          browUp = 0.22;
+          squint = 0.14;
+        }
+
+        if (dict.mouthSmileLeft !== undefined) inf[dict.mouthSmileLeft] = sLeft;
+        if (dict.mouthSmileRight !== undefined) inf[dict.mouthSmileRight] = sRight;
+        if (dict.mouthSmile !== undefined) inf[dict.mouthSmile] = sCenter;
+        if (dict.browInnerUp !== undefined) inf[dict.browInnerUp] = browUp;
+        if (dict.eyeSquintLeft !== undefined)
+          inf[dict.eyeSquintLeft] = Math.max(blinkVal * 0.5, squint);
+        if (dict.eyeSquintRight !== undefined)
+          inf[dict.eyeSquintRight] = Math.max(blinkVal * 0.5, squint);
+        if (dict.mouthDimpleRight !== undefined) inf[dict.mouthDimpleRight] = dimple;
       }
 
       if (modMeshes.eyes && modMeshes.eyes.length > 0) {
@@ -425,10 +525,14 @@ export function ThreeMannequinViewer({
           const dist = Math.hypot(dx, dy);
           const diff = (pinchStartDistRef.current - dist) * 0.008;
           pinchStartDistRef.current = dist;
-          cameraTargetRef.current.targetDistance = Math.max(
+          const nextDist = Math.max(
             zoomRef.current.min,
             Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance + diff),
           );
+          cameraTargetRef.current.targetDistance = nextDist;
+          if (baseFramingRef.current.distance > 0) {
+            userZoomFactorRef.current = nextDist / baseFramingRef.current.distance;
+          }
           return;
         } else if (e.touches.length === 1) {
           currentX = e.touches[0].clientX;
@@ -459,12 +563,15 @@ export function ThreeMannequinViewer({
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const zoomDelta = e.deltaY * 0.003;
-      const newDist = Math.max(
+      const nextDist = Math.max(
         zoomRef.current.min,
         Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance + zoomDelta),
       );
-      cameraTargetRef.current.targetDistance = newDist;
-      zoomRef.current.targetDistance = newDist;
+      cameraTargetRef.current.targetDistance = nextDist;
+      zoomRef.current.targetDistance = nextDist;
+      if (baseFramingRef.current.distance > 0) {
+        userZoomFactorRef.current = nextDist / baseFramingRef.current.distance;
+      }
     };
 
     const el = renderer.domElement;
@@ -730,21 +837,27 @@ export function ThreeMannequinViewer({
   function resetView() {
     rotationRef.current.targetY = 0;
     rotationRef.current.targetPitch = 0.05;
-    zoomRef.current.targetDistance = 4.0;
+    userZoomFactorRef.current = 1.0;
+    cameraTargetRef.current.targetY = baseFramingRef.current.targetY;
+    cameraTargetRef.current.targetDistance = baseFramingRef.current.distance;
   }
 
   function handleZoomIn() {
-    zoomRef.current.targetDistance = Math.max(
-      zoomRef.current.min,
-      zoomRef.current.targetDistance - 0.5,
-    );
+    const nextDist = Math.max(zoomRef.current.min, cameraTargetRef.current.targetDistance - 0.5);
+    cameraTargetRef.current.targetDistance = nextDist;
+    zoomRef.current.targetDistance = nextDist;
+    if (baseFramingRef.current.distance > 0) {
+      userZoomFactorRef.current = nextDist / baseFramingRef.current.distance;
+    }
   }
 
   function handleZoomOut() {
-    zoomRef.current.targetDistance = Math.min(
-      zoomRef.current.max,
-      zoomRef.current.targetDistance + 0.5,
-    );
+    const nextDist = Math.min(zoomRef.current.max, cameraTargetRef.current.targetDistance + 0.5);
+    cameraTargetRef.current.targetDistance = nextDist;
+    zoomRef.current.targetDistance = nextDist;
+    if (baseFramingRef.current.distance > 0) {
+      userZoomFactorRef.current = nextDist / baseFramingRef.current.distance;
+    }
   }
 
   return (
