@@ -7,7 +7,12 @@ export type HairstyleType =
   | "sleek_bob"
   | "high_ponytail"
   | "afro_curls"
-  | "chic_beanie";
+  | "chic_beanie"
+  | "buzz_cut"
+  | "short_textured"
+  | "curly_high_top"
+  | "center_part_bob"
+  | "long_waves";
 
 export type EyewearType = "none" | "designer_sunglasses" | "wire_frames";
 
@@ -97,7 +102,16 @@ export function createSleekBobHair(mat: THREE.Material): THREE.Group {
   group.add(dome);
 
   // Bob Sides Curtains
-  const sidesGeo = new THREE.CylinderGeometry(0.132, 0.14, 0.22, 24, 1, true, Math.PI * 0.25, Math.PI * 1.5);
+  const sidesGeo = new THREE.CylinderGeometry(
+    0.132,
+    0.14,
+    0.22,
+    24,
+    1,
+    true,
+    Math.PI * 0.25,
+    Math.PI * 1.5,
+  );
   sidesGeo.scale(1.0, 1.0, 1.08);
   sidesGeo.translate(0, -0.06, -0.015);
   const sides = new THREE.Mesh(sidesGeo, mat);

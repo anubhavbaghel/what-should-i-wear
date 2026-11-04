@@ -35,7 +35,9 @@ import {
   Sliders,
   Camera,
   MoreHorizontal,
+  Layers,
 } from "lucide-react";
+import { Layered25DViewer } from "./Layered25DViewer";
 
 export type StudioTab = "avatar" | "body" | "face" | "hair" | "outfit";
 export type MobileSheetState = "collapsed" | "expanded";
@@ -151,7 +153,12 @@ export const BODY_FRAMES: {
 ];
 
 export const HAIRSTYLES: { id: HairstyleType; label: string }[] = [
+  { id: "buzz_cut", label: "Buzz Cut" },
   { id: "wavy_curtains", label: "Natural Volume" },
+  { id: "short_textured", label: "Short Textured" },
+  { id: "curly_high_top", label: "High Top" },
+  { id: "center_part_bob", label: "Center Part Bob" },
+  { id: "long_waves", label: "Long Waves" },
   { id: "none", label: "Minimal / Bare" },
 ];
 
@@ -325,6 +332,9 @@ export function AvatarDesignerStudio({
 
   // Camera Focus
   const [cameraFocus, setCameraFocus] = useState<CameraFocusTarget>("full");
+
+  // Viewport Rendering Engine: Layered 2.5D (experimental) vs 3D (WebGL)
+  const [engineMode, setEngineMode] = useState<"2.5d" | "3d">("2.5d");
 
   // Undo & Redo History Stacks
   const historyRef = useRef<StudioHistoryState[]>([]);
@@ -634,6 +644,17 @@ export function AvatarDesignerStudio({
             </div>
 
             <div className="flex items-center gap-2">
+              {/* Desktop Engine Switcher */}
+              <button
+                type="button"
+                onClick={() => setEngineMode((m) => (m === "2.5d" ? "3d" : "2.5d"))}
+                className="flex items-center gap-1.5 rounded-full border border-black/5 bg-neutral-900 text-white px-3 py-1.5 text-xs font-medium transition-all active:scale-95 shadow-xs"
+                title="Toggle between Layered 2.5D and Full 3D WebGL"
+              >
+                <Layers className="h-3.5 w-3.5" />
+                <span>Engine: {engineMode === "2.5d" ? "2.5D Layered" : "3D WebGL"}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={handleResetDefaults}
@@ -657,27 +678,47 @@ export function AvatarDesignerStudio({
 
           {/* Main 2-Column Content Area */}
           <div className="flex-1 min-h-0 flex gap-6 p-6 overflow-hidden">
-            {/* LEFT COLUMN: 3D Mannequin Viewport */}
+            {/* LEFT COLUMN: 2.5D or 3D Mannequin Viewport */}
             <div className="w-1/2 h-full flex flex-col relative rounded-2xl border border-black/[0.06] bg-neutral-50/60 overflow-hidden">
-              <ThreeMannequinViewer
-                modelType={modelType}
-                build={currentFrameObj.build}
-                bodyMorphs={isComparingDefault ? undefined : activeMorphs}
-                skinToneHex={skinToneHex}
-                heightScale={heightScale}
-                hairStyle={hairStyle}
-                hairColorHex={hairColorHex}
-                eyewear={eyewear}
-                presentation={presentation}
-                stance={stance}
-                facialExpression={facialExpression}
-                outfit={outfit}
-                cameraFocus={cameraFocus}
-                onFocusChange={setCameraFocus}
-                onUndo={canUndo ? handleUndo : undefined}
-                showFocusTabs={true}
-                className="w-full h-full bg-transparent"
-              />
+              {engineMode === "2.5d" ? (
+                <Layered25DViewer
+                  modelType={modelType}
+                  build={currentFrameObj.build}
+                  bodyMorphs={isComparingDefault ? undefined : activeMorphs}
+                  skinToneHex={skinToneHex}
+                  heightScale={heightScale}
+                  hairStyle={hairStyle}
+                  hairColorHex={hairColorHex}
+                  eyewear={eyewear}
+                  presentation={presentation}
+                  stance={stance}
+                  facialExpression={facialExpression}
+                  outfit={outfit}
+                  cameraFocus={cameraFocus}
+                  onFocusChange={setCameraFocus}
+                  className="w-full h-full"
+                />
+              ) : (
+                <ThreeMannequinViewer
+                  modelType={modelType}
+                  build={currentFrameObj.build}
+                  bodyMorphs={isComparingDefault ? undefined : activeMorphs}
+                  skinToneHex={skinToneHex}
+                  heightScale={heightScale}
+                  hairStyle={hairStyle}
+                  hairColorHex={hairColorHex}
+                  eyewear={eyewear}
+                  presentation={presentation}
+                  stance={stance}
+                  facialExpression={facialExpression}
+                  outfit={outfit}
+                  cameraFocus={cameraFocus}
+                  onFocusChange={setCameraFocus}
+                  onUndo={canUndo ? handleUndo : undefined}
+                  showFocusTabs={true}
+                  className="w-full h-full bg-transparent"
+                />
+              )}
 
               <button
                 type="button"
@@ -1135,28 +1176,49 @@ export function AvatarDesignerStudio({
           MOBILE DEDICATED VIEW (visible on mobile < md) - RESPONSIVE AVATAR COMPOSITION
          ========================================================================= */}
       <div className="relative md:hidden h-full w-full overflow-hidden bg-[#FAF8F5]">
-        {/* Layer B: 3D Avatar Viewport (Full-Screen Responsive Focus) */}
+        {/* Layer B: Avatar Viewport (Layered 2.5D or 3D WebGL) */}
         <div className="absolute inset-0 z-0">
-          <ThreeMannequinViewer
-            modelType={modelType}
-            build={currentFrameObj.build}
-            bodyMorphs={isComparingDefault ? undefined : activeMorphs}
-            skinToneHex={skinToneHex}
-            heightScale={heightScale}
-            hairStyle={hairStyle}
-            hairColorHex={hairColorHex}
-            eyewear={eyewear}
-            presentation={presentation}
-            stance={stance}
-            facialExpression={facialExpression}
-            outfit={outfit}
-            cameraFocus={cameraFocus}
-            sheetState={mobileSheetState}
-            onFocusChange={setCameraFocus}
-            showFocusTabs={false}
-            hideInternalHeader={true}
-            className="w-full h-full bg-transparent"
-          />
+          {engineMode === "2.5d" ? (
+            <Layered25DViewer
+              modelType={modelType}
+              build={currentFrameObj.build}
+              bodyMorphs={isComparingDefault ? undefined : activeMorphs}
+              skinToneHex={skinToneHex}
+              heightScale={heightScale}
+              hairStyle={hairStyle}
+              hairColorHex={hairColorHex}
+              eyewear={eyewear}
+              presentation={presentation}
+              stance={stance}
+              facialExpression={facialExpression}
+              outfit={outfit}
+              cameraFocus={cameraFocus}
+              sheetState={mobileSheetState}
+              onFocusChange={setCameraFocus}
+              className="w-full h-full"
+            />
+          ) : (
+            <ThreeMannequinViewer
+              modelType={modelType}
+              build={currentFrameObj.build}
+              bodyMorphs={isComparingDefault ? undefined : activeMorphs}
+              skinToneHex={skinToneHex}
+              heightScale={heightScale}
+              hairStyle={hairStyle}
+              hairColorHex={hairColorHex}
+              eyewear={eyewear}
+              presentation={presentation}
+              stance={stance}
+              facialExpression={facialExpression}
+              outfit={outfit}
+              cameraFocus={cameraFocus}
+              sheetState={mobileSheetState}
+              onFocusChange={setCameraFocus}
+              showFocusTabs={false}
+              hideInternalHeader={true}
+              className="w-full h-full bg-transparent"
+            />
+          )}
         </div>
 
         {/* Global Backdrop for Open Dropdowns */}
@@ -1187,6 +1249,19 @@ export function AvatarDesignerStudio({
 
           {/* Right: Camera Focus, Undo, Redo, and More Actions Menu */}
           <div className="pointer-events-auto flex items-center gap-1 relative">
+            {/* Engine Switcher Pill (2.5D vs 3D) */}
+            <button
+              type="button"
+              onClick={() => {
+                setEngineMode((m) => (m === "2.5d" ? "3d" : "2.5d"));
+              }}
+              className="flex h-9 items-center gap-1 rounded-full border border-black/5 bg-white/85 px-2.5 text-xs font-semibold text-neutral-800 shadow-xs backdrop-blur-md transition-all active:scale-95 hover:bg-white"
+              title="Toggle between Layered 2.5D and Full 3D WebGL"
+            >
+              <Layers className="h-3.5 w-3.5 text-neutral-600" />
+              <span className="text-[11px]">{engineMode === "2.5d" ? "2.5D" : "3D"}</span>
+            </button>
+
             {/* Compact Contextual Camera Focus Pill */}
             <div className="relative">
               <button
@@ -1322,6 +1397,23 @@ export function AvatarDesignerStudio({
                   })}
 
                   <div className="h-px bg-neutral-100 my-1" />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEngineMode((m) => (m === "2.5d" ? "3d" : "2.5d"));
+                      setIsActionsMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-medium text-neutral-700 hover:bg-neutral-100 transition-all text-left"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Layers className="h-3.5 w-3.5" />
+                      <span>Studio Engine</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase bg-neutral-900 text-white">
+                      {engineMode === "2.5d" ? "2.5D" : "3D"}
+                    </span>
+                  </button>
 
                   <button
                     type="button"
