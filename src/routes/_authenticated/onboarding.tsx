@@ -89,6 +89,9 @@ export default function OnboardingPage() {
         <AvatarDesignerStudio
           initialPreset={preset}
           initialPresentation={presentation}
+          initialModelType={
+            presentation === "masculine" ? "/models/male-twin.glb" : "/models/female-twin.glb"
+          }
           initialConfig={avatarConfig}
           currentStep={1}
           onContinue={() => setStep(2)}
@@ -182,7 +185,14 @@ export default function OnboardingPage() {
                   <div className="grid grid-cols-2 gap-2.5">
                     <button
                       type="button"
-                      onClick={() => setPresentation("feminine")}
+                      onClick={() => {
+                        setPresentation("feminine");
+                        setAvatarConfig((prev) => ({
+                          ...(prev || {}),
+                          modelType: "/models/female-twin.glb",
+                          presentation: "feminine",
+                        }));
+                      }}
                       className={cn(
                         "rounded-2xl border-2 border-ink p-3 text-left transition-all flex flex-col justify-between shadow-2xs",
                         presentation === "feminine"
@@ -198,7 +208,14 @@ export default function OnboardingPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setPresentation("masculine")}
+                      onClick={() => {
+                        setPresentation("masculine");
+                        setAvatarConfig((prev) => ({
+                          ...(prev || {}),
+                          modelType: "/models/male-twin.glb",
+                          presentation: "masculine",
+                        }));
+                      }}
                       className={cn(
                         "rounded-2xl border-2 border-ink p-3 text-left transition-all flex flex-col justify-between shadow-2xs",
                         presentation === "masculine"

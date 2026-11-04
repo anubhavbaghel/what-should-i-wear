@@ -237,21 +237,40 @@ export function AvatarDesignerStudio({
   const [isComparingDefault, setIsComparingDefault] = useState<boolean>(false);
 
   // Model & Twin Presentation
+  const [presentation, setPresentation] = useState<StylePresentationType>(() => {
+    return initialPresentation || initialConfig?.presentation || "feminine";
+  });
+
   const [modelType, setModelType] = useState<ModelPresetType>(() => {
-    if (initialConfig?.modelType) return initialConfig.modelType as ModelPresetType;
     if (
       initialModelType &&
       (initialModelType.includes("female") || initialModelType.includes("male"))
     ) {
       return initialModelType;
     }
-    const pres = initialConfig?.presentation || initialPresentation;
-    return pres === "masculine" ? "/models/male-twin.glb" : "/models/female-twin.glb";
+    const targetPres = initialPresentation || initialConfig?.presentation;
+    if (targetPres === "masculine") return "/models/male-twin.glb";
+    if (targetPres === "feminine") return "/models/female-twin.glb";
+    if (initialConfig?.modelType) return initialConfig.modelType as ModelPresetType;
+    return "/models/female-twin.glb";
   });
 
-  const [presentation, setPresentation] = useState<StylePresentationType>(
-    initialConfig?.presentation || initialPresentation,
-  );
+  // Keep modelType and presentation reactive if initialPresentation or initialModelType change
+  useEffect(() => {
+    if (initialPresentation === "masculine") {
+      setModelType("/models/male-twin.glb");
+      setPresentation("masculine");
+    } else if (initialPresentation === "feminine") {
+      setModelType("/models/female-twin.glb");
+      setPresentation("feminine");
+    }
+  }, [initialPresentation]);
+
+  useEffect(() => {
+    if (initialModelType) {
+      setModelType(initialModelType);
+    }
+  }, [initialModelType]);
 
   // Body Frame & Proportions
   const [bodyFrame, setBodyFrame] = useState<BodyFrameType>(() => {
