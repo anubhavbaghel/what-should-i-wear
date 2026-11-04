@@ -32,7 +32,7 @@ export default function OnboardingPage() {
     queryFn: () => fetchProfile(),
   });
 
-  const [step, setStep] = useState(1); // Default to Step 1: Design your mannequin
+  const [step, setStep] = useState(0); // Start at Step 0: Welcome, name & digital twin selection
   const [name, setName] = useState("");
   const [preset, setPreset] = useState("neutral_medium");
   const [presentation, setPresentation] = useState<StylePresentationType>("feminine");
