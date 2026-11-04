@@ -1165,69 +1165,6 @@ export function AvatarDesignerStudio({
             )}
           </div>
 
-          {/* Center: Compact Model-Selection Dropdown Menu */}
-          <div className="pointer-events-auto relative">
-            <button
-              type="button"
-              onClick={() => {
-                setIsModelMenuOpen((prev) => !prev);
-                setIsActionsMenuOpen(false);
-                setIsCameraMenuOpen(false);
-              }}
-              className="flex items-center gap-1.5 rounded-full border border-black/5 bg-white/85 px-3 py-1.5 text-xs font-semibold text-neutral-800 shadow-xs backdrop-blur-md transition-all active:scale-95 hover:bg-white"
-            >
-              <span>{modelType.includes("male") ? "Male Twin" : "Female Twin"}</span>
-              <ChevronDown
-                className={cn(
-                  "h-3.5 w-3.5 text-neutral-400 transition-transform",
-                  isModelMenuOpen && "rotate-180",
-                )}
-              />
-            </button>
-
-            {isModelMenuOpen && (
-              <div className="absolute top-11 left-1/2 -translate-x-1/2 w-48 rounded-2xl border border-black/[0.08] bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl transition-all z-50">
-                <span className="block px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
-                  Select Digital Twin
-                </span>
-                {AVATAR_TWINS.map((t) => {
-                  const isSelected = modelType === t.id;
-                  return (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => {
-                        pushHistory();
-                        setModelType(t.id);
-                        setPresentation(t.presentation);
-                        setIsModelMenuOpen(false);
-                      }}
-                      className={cn(
-                        "w-full flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-medium transition-all text-left",
-                        isSelected
-                          ? "bg-neutral-900 text-white shadow-xs"
-                          : "text-neutral-700 hover:bg-neutral-100",
-                      )}
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-semibold">{t.shortLabel}</span>
-                        <span
-                          className={cn(
-                            "text-[10px]",
-                            isSelected ? "text-neutral-300" : "text-neutral-400",
-                          )}
-                        >
-                          {t.badge}
-                        </span>
-                      </div>
-                      {isSelected && <Check className="h-3.5 w-3.5 stroke-[2.5]" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           {/* Right: Camera Focus, Undo, Redo, and More Actions Menu */}
           <div className="pointer-events-auto flex items-center gap-1 relative">
             {/* Compact Contextual Camera Focus Pill */}
@@ -1325,7 +1262,47 @@ export function AvatarDesignerStudio({
               </button>
 
               {isActionsMenuOpen && (
-                <div className="absolute top-11 right-0 w-44 rounded-2xl border border-black/[0.08] bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl transition-all z-50 space-y-1">
+                <div className="absolute top-11 right-0 w-48 rounded-2xl border border-black/[0.08] bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl transition-all z-50 space-y-1">
+                  <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-neutral-400">
+                    Digital Twin Model
+                  </div>
+                  {AVATAR_TWINS.map((t) => {
+                    const isSelected = modelType === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          pushHistory();
+                          setModelType(t.id);
+                          setPresentation(t.presentation);
+                          setIsActionsMenuOpen(false);
+                        }}
+                        className={cn(
+                          "w-full flex items-center justify-between rounded-xl px-2.5 py-1.5 text-xs font-medium transition-all text-left",
+                          isSelected
+                            ? "bg-neutral-900 text-white font-semibold shadow-xs"
+                            : "text-neutral-700 hover:bg-neutral-100",
+                        )}
+                      >
+                        <div className="flex flex-col">
+                          <span>{t.shortLabel}</span>
+                          <span
+                            className={cn(
+                              "text-[10px]",
+                              isSelected ? "text-neutral-300" : "text-neutral-400",
+                            )}
+                          >
+                            {t.badge}
+                          </span>
+                        </div>
+                        {isSelected && <Check className="h-3 w-3 stroke-[2.5]" />}
+                      </button>
+                    );
+                  })}
+
+                  <div className="h-px bg-neutral-100 my-1" />
+
                   <button
                     type="button"
                     onClick={() => {

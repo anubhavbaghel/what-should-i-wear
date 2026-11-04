@@ -123,7 +123,7 @@ export default function OnboardingPage() {
                 key={i}
                 className={cn(
                   "h-2.5 w-8 rounded-full border border-ink transition-colors",
-                  i <= step ? "bg-[#FF8096]" : "bg-white"
+                  i <= step ? "bg-[#FF8096]" : "bg-white",
                 )}
               />
             ))}
@@ -174,6 +174,44 @@ export default function OnboardingPage() {
                     className="w-full rounded-2xl border-2 border-ink bg-white px-4 py-3 text-sm font-bold text-ink shadow-2xs focus:outline-none focus:ring-2 focus:ring-[#FF8096]"
                   />
                 </label>
+
+                <div className="mt-5">
+                  <span className="mb-2 block text-xs font-black uppercase tracking-wider text-ink">
+                    Digital Twin & Wardrobe Style
+                  </span>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setPresentation("feminine")}
+                      className={cn(
+                        "rounded-2xl border-2 border-ink p-3 text-left transition-all flex flex-col justify-between shadow-2xs",
+                        presentation === "feminine"
+                          ? "bg-[#FFE169] text-ink ring-2 ring-ink ring-offset-1 font-black"
+                          : "bg-white text-ink hover:bg-neutral-50 font-bold",
+                      )}
+                    >
+                      <span className="text-xl mb-1">👗</span>
+                      <span className="text-sm">Womenswear</span>
+                      <span className="text-[10px] text-neutral-600 font-semibold">
+                        Female Twin
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPresentation("masculine")}
+                      className={cn(
+                        "rounded-2xl border-2 border-ink p-3 text-left transition-all flex flex-col justify-between shadow-2xs",
+                        presentation === "masculine"
+                          ? "bg-[#FFE169] text-ink ring-2 ring-ink ring-offset-1 font-black"
+                          : "bg-white text-ink hover:bg-neutral-50 font-bold",
+                      )}
+                    >
+                      <span className="text-xl mb-1">👔</span>
+                      <span className="text-sm">Menswear</span>
+                      <span className="text-[10px] text-neutral-600 font-semibold">Male Twin</span>
+                    </button>
+                  </div>
+                </div>
 
                 <button
                   onClick={() => setStep(1)}
