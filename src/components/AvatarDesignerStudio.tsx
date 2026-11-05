@@ -151,7 +151,12 @@ export const BODY_FRAMES: {
 ];
 
 export const HAIRSTYLES: { id: HairstyleType; label: string }[] = [
+  { id: "buzz_cut", label: "Buzz Cut" },
   { id: "wavy_curtains", label: "Natural Volume" },
+  { id: "short_textured", label: "Short Textured" },
+  { id: "curly_high_top", label: "High Top" },
+  { id: "center_part_bob", label: "Center Part Bob" },
+  { id: "long_waves", label: "Long Waves" },
   { id: "none", label: "Minimal / Bare" },
 ];
 
