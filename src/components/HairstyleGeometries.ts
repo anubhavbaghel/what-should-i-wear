@@ -258,3 +258,147 @@ export function createDesignerSunglasses(): THREE.Group {
 
   return group;
 }
+
+// 8. Modern Short Textured Crop
+export function createShortTexturedHair(mat: THREE.Material): THREE.Group {
+  const group = new THREE.Group();
+
+  const baseGeo = new THREE.SphereGeometry(0.125, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.58);
+  baseGeo.scale(1.02, 1.16, 1.12);
+  baseGeo.translate(0, 0.015, -0.01);
+  const base = new THREE.Mesh(baseGeo, mat);
+  base.castShadow = true;
+  group.add(base);
+
+  // Micro-texture fringe clusters
+  for (let i = -3; i <= 3; i++) {
+    const clusterGeo = new THREE.ConeGeometry(0.018, 0.045, 8);
+    clusterGeo.rotateX(Math.PI * 0.35);
+    clusterGeo.translate(i * 0.024, 0.07, 0.095);
+    const cluster = new THREE.Mesh(clusterGeo, mat);
+    cluster.castShadow = true;
+    group.add(cluster);
+  }
+
+  return group;
+}
+
+// 9. Volumetric Curly High Top
+export function createCurlyHighTopHair(mat: THREE.Material): THREE.Group {
+  const group = new THREE.Group();
+
+  const crownGeo = new THREE.CylinderGeometry(0.11, 0.122, 0.09, 24);
+  crownGeo.scale(1.04, 1.0, 1.08);
+  crownGeo.translate(0, 0.075, -0.01);
+  const crown = new THREE.Mesh(crownGeo, mat);
+  crown.castShadow = true;
+  group.add(crown);
+
+  const topDome = new THREE.SphereGeometry(0.11, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.5);
+  topDome.scale(1.04, 0.7, 1.08);
+  topDome.translate(0, 0.12, -0.01);
+  const topDomeMesh = new THREE.Mesh(topDome, mat);
+  topDomeMesh.castShadow = true;
+  group.add(topDomeMesh);
+
+  return group;
+}
+
+// 10. Long Romantic Waves
+export function createLongWavesHair(mat: THREE.Material): THREE.Group {
+  const group = new THREE.Group();
+
+  // Crown base
+  const crownGeo = new THREE.SphereGeometry(0.126, 24, 20, 0, Math.PI * 2, 0, Math.PI * 0.52);
+  crownGeo.scale(1.02, 1.18, 1.14);
+  crownGeo.translate(0, 0.015, -0.01);
+  const crown = new THREE.Mesh(crownGeo, mat);
+  crown.castShadow = true;
+  group.add(crown);
+
+  // Flowing back curtain
+  const backGeo = new THREE.CylinderGeometry(
+    0.12,
+    0.16,
+    0.38,
+    24,
+    1,
+    true,
+    Math.PI * 0.1,
+    Math.PI * 1.8,
+  );
+  backGeo.scale(1.0, 1.0, 1.12);
+  backGeo.translate(0, -0.14, -0.03);
+  const back = new THREE.Mesh(backGeo, mat);
+  back.castShadow = true;
+  group.add(back);
+
+  // Left Front Wave
+  const leftFrontGeo = new THREE.CylinderGeometry(0.045, 0.035, 0.32, 16);
+  leftFrontGeo.rotateZ(0.18);
+  leftFrontGeo.scale(0.85, 1.0, 0.65);
+  leftFrontGeo.translate(-0.095, -0.07, 0.06);
+  const leftFront = new THREE.Mesh(leftFrontGeo, mat);
+  leftFront.castShadow = true;
+  group.add(leftFront);
+
+  // Right Front Wave
+  const rightFrontGeo = new THREE.CylinderGeometry(0.045, 0.035, 0.32, 16);
+  rightFrontGeo.rotateZ(-0.18);
+  rightFrontGeo.scale(0.85, 1.0, 0.65);
+  rightFrontGeo.translate(0.095, -0.07, 0.06);
+  const rightFront = new THREE.Mesh(rightFrontGeo, mat);
+  rightFront.castShadow = true;
+  group.add(rightFront);
+
+  return group;
+}
+
+// 11. Minimalist Wire-Rim Optical Glasses
+export function createWireFramesGlasses(): THREE.Group {
+  const group = new THREE.Group();
+
+  const wireMat = new THREE.MeshStandardMaterial({
+    color: new THREE.Color("#B8860B"),
+    roughness: 0.25,
+    metalness: 0.85,
+  });
+
+  const lensMat = new THREE.MeshPhysicalMaterial({
+    color: new THREE.Color("#FFFFFF"),
+    roughness: 0.04,
+    metalness: 0.05,
+    transmission: 0.88,
+    thickness: 0.008,
+  });
+
+  // Left Frame
+  const frameGeo = new THREE.TorusGeometry(0.026, 0.0024, 12, 28);
+  const leftFrame = new THREE.Mesh(frameGeo, wireMat);
+  leftFrame.position.set(-0.042, 0.01, 0.118);
+  group.add(leftFrame);
+
+  // Left Lens
+  const lensGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.002, 20);
+  lensGeo.rotateX(Math.PI * 0.5);
+  const leftLens = new THREE.Mesh(lensGeo, lensMat);
+  leftLens.position.set(-0.042, 0.01, 0.118);
+  group.add(leftLens);
+
+  // Right Frame & Lens
+  const rightFrame = leftFrame.clone();
+  rightFrame.position.x = 0.042;
+  group.add(rightFrame);
+
+  const rightLens = leftLens.clone();
+  rightLens.position.x = 0.042;
+  group.add(rightLens);
+
+  // Bridge
+  const bridgeGeo = new THREE.BoxGeometry(0.022, 0.002, 0.003);
+  const bridge = new THREE.Mesh(bridgeGeo, wireMat);
+  bridge.position.set(0, 0.012, 0.118);
+  group.add(bridge);
+
+  return group;
+}

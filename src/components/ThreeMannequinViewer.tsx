@@ -3,7 +3,23 @@ import * as THREE from "three";
 import { RefreshCw, Plus, Minus, Undo2, Loader2 } from "lucide-react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { cn } from "@/lib/utils";
-import type { HairstyleType, EyewearType } from "./HairstyleGeometries";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import {
+  createHairMaterial,
+  createFadeHairGeometry,
+  createWavyCurtainsHair,
+  createSleekBobHair,
+  createHighPonytailHair,
+  createAfroCurlsHair,
+  createChicBeanie,
+  createShortTexturedHair,
+  createCurlyHighTopHair,
+  createLongWavesHair,
+  createDesignerSunglasses,
+  createWireFramesGlasses,
+  type HairstyleType,
+  type EyewearType,
+} from "./HairstyleGeometries";
 import {
   BodyMorphConfig,
   MannequinOutfitConfig,
@@ -109,6 +125,10 @@ export function ThreeMannequinViewer({
   const modelBonesRef = useRef<ModelBones>({});
   const spine1StanceQuatRef = useRef<THREE.Quaternion | null>(null);
   const heightPivotGroupRef = useRef<THREE.Group | null>(null);
+
+  const modularHairGroupRef = useRef<THREE.Group | null>(null);
+  const modularGlassesGroupRef = useRef<THREE.Group | null>(null);
+  const modularAttachmentAnchorRef = useRef<THREE.Group | null>(null);
 
   const modularMeshesRef = useRef<{
     head?: THREE.SkinnedMesh;
@@ -259,8 +279,15 @@ export function ThreeMannequinViewer({
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMappingExposure = 1.0;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     rendererRef.current = renderer;
+
+    // High-Fidelity Studio Ambient Environment Reflections (PMREM)
+    const pmremGenerator = new THREE.PMREMGenerator(renderer);
+    pmremGenerator.compileEquirectangularShader();
+    const envTexture = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environment = envTexture;
 
     while (container.firstChild) {
       container.removeChild(container.firstChild);
@@ -597,6 +624,8 @@ export function ThreeMannequinViewer({
       window.removeEventListener("touchend", onPointerUp);
       el.removeEventListener("wheel", onWheel);
 
+      pmremGenerator.dispose();
+      envTexture.dispose();
       renderer.dispose();
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
@@ -608,13 +637,19 @@ export function ThreeMannequinViewer({
     const modMeshes = modularMeshesRef.current;
     if (!modMeshes.head && !modMeshes.body) return;
 
+    // 1. Skin & Body Velvet Studio PBR Tuning
     if (modMeshes.head?.material) {
       const mat = (
         Array.isArray(modMeshes.head.material)
           ? modMeshes.head.material[0]
           : modMeshes.head.material
       ) as THREE.MeshStandardMaterial;
-      if (mat && mat.color) mat.color.set(skinToneHex);
+      if (mat) {
+        if (mat.color) mat.color.set(skinToneHex);
+        mat.roughness = 0.64;
+        mat.metalness = 0.0;
+        mat.envMapIntensity = 0.85;
+      }
     }
     if (modMeshes.body?.material) {
       const mat = (
@@ -622,59 +657,187 @@ export function ThreeMannequinViewer({
           ? modMeshes.body.material[0]
           : modMeshes.body.material
       ) as THREE.MeshStandardMaterial;
-      if (mat && mat.color) mat.color.set(skinToneHex);
-    }
-
-    if (modMeshes.hair) {
-      modMeshes.hair.visible = hairStyle !== "none";
-      if (modMeshes.hair.material) {
-        const mat = (
-          Array.isArray(modMeshes.hair.material)
-            ? modMeshes.hair.material[0]
-            : modMeshes.hair.material
-        ) as THREE.MeshStandardMaterial;
-        if (mat && mat.color) mat.color.set(hairColorHex);
+      if (mat) {
+        if (mat.color) mat.color.set(skinToneHex);
+        mat.roughness = 0.64;
+        mat.metalness = 0.0;
+        mat.envMapIntensity = 0.85;
       }
     }
 
-    if (modMeshes.glasses) {
-      modMeshes.glasses.visible = eyewear !== "none";
+    // 2. Eyes & Teeth High-Specular Realism
+    if (modMeshes.eyes && modMeshes.eyes.length > 0) {
+      modMeshes.eyes.forEach((eye) => {
+        if (eye.material) {
+          const mat = (
+            Array.isArray(eye.material) ? eye.material[0] : eye.material
+          ) as THREE.MeshStandardMaterial;
+          if (mat) {
+            mat.roughness = 0.05;
+            mat.metalness = 0.02;
+            mat.envMapIntensity = 1.4;
+          }
+        }
+      });
     }
 
+    if (modMeshes.teeth?.material) {
+      const mat = (
+        Array.isArray(modMeshes.teeth.material)
+          ? modMeshes.teeth.material[0]
+          : modMeshes.teeth.material
+      ) as THREE.MeshStandardMaterial;
+      if (mat) {
+        mat.roughness = 0.35;
+        mat.metalness = 0.0;
+        mat.color.set("#FFFDF9");
+      }
+    }
+
+    // 3. Modular Procedural Hairstyle System
+    const hairGroup = modularHairGroupRef.current;
+    if (hairGroup) {
+      while (hairGroup.children.length > 0) {
+        const c = hairGroup.children[0];
+        hairGroup.remove(c);
+      }
+
+      const hairMat = createHairMaterial({
+        colorHex: hairColorHex,
+        roughness: 0.72,
+        metalness: 0.08,
+      });
+
+      if (hairStyle === "none") {
+        if (modMeshes.hair) modMeshes.hair.visible = false;
+      } else if (hairStyle === "wavy_curtains") {
+        if (modMeshes.hair) {
+          modMeshes.hair.visible = true;
+          const mat = (
+            Array.isArray(modMeshes.hair.material)
+              ? modMeshes.hair.material[0]
+              : modMeshes.hair.material
+          ) as THREE.MeshStandardMaterial;
+          if (mat) {
+            mat.color.set(hairColorHex);
+            mat.roughness = 0.72;
+            mat.metalness = 0.08;
+            mat.envMapIntensity = 1.0;
+          }
+        } else {
+          hairGroup.add(createWavyCurtainsHair(hairMat));
+        }
+      } else {
+        if (modMeshes.hair) modMeshes.hair.visible = false;
+
+        if (hairStyle === "fade" || hairStyle === "buzz_cut") {
+          const geo = createFadeHairGeometry();
+          const mesh = new THREE.Mesh(geo, hairMat);
+          mesh.castShadow = true;
+          hairGroup.add(mesh);
+        } else if (hairStyle === "short_textured") {
+          hairGroup.add(createShortTexturedHair(hairMat));
+        } else if (hairStyle === "curly_high_top") {
+          hairGroup.add(createCurlyHighTopHair(hairMat));
+        } else if (hairStyle === "sleek_bob") {
+          hairGroup.add(createSleekBobHair(hairMat));
+        } else if (hairStyle === "high_ponytail") {
+          hairGroup.add(createHighPonytailHair(hairMat));
+        } else if (hairStyle === "afro_curls") {
+          hairGroup.add(createAfroCurlsHair(hairMat));
+        } else if (hairStyle === "chic_beanie") {
+          hairGroup.add(createChicBeanie(hairColorHex));
+        } else if (hairStyle === "long_waves") {
+          hairGroup.add(createLongWavesHair(hairMat));
+        }
+      }
+    }
+
+    // 4. Modular Eyewear System (Cross-Compatible on Male & Female)
+    const glassesGroup = modularGlassesGroupRef.current;
+    if (glassesGroup) {
+      while (glassesGroup.children.length > 0) {
+        const c = glassesGroup.children[0];
+        glassesGroup.remove(c);
+      }
+
+      if (modMeshes.glasses) {
+        modMeshes.glasses.visible = false; // prefer our physical glasses
+      }
+
+      if (eyewear === "designer_sunglasses") {
+        glassesGroup.add(createDesignerSunglasses());
+      } else if (eyewear === "wire_frames") {
+        glassesGroup.add(createWireFramesGlasses());
+      }
+    }
+
+    // 5. Tops Modular Fabric & Styling
     if (modMeshes.top) {
       const isTopVisible = outfit?.topType !== "none";
       modMeshes.top.visible = isTopVisible;
-      if (isTopVisible && outfit?.topColor && modMeshes.top.material) {
+      if (isTopVisible && modMeshes.top.material) {
         const mat = (
           Array.isArray(modMeshes.top.material) ? modMeshes.top.material[0] : modMeshes.top.material
         ) as THREE.MeshStandardMaterial;
-        if (mat && mat.color) mat.color.set(outfit.topColor);
+        if (mat) {
+          if (outfit?.topColor) mat.color.set(outfit.topColor);
+          mat.envMapIntensity = 0.8;
+          if (outfit?.topType === "shirt") {
+            mat.roughness = 0.58;
+            mat.metalness = 0.02;
+          } else if (outfit?.topType === "jacket") {
+            mat.roughness = 0.88;
+            mat.metalness = 0.05;
+          } else {
+            // "tee"
+            mat.roughness = 0.82;
+            mat.metalness = 0.01;
+          }
+        }
       }
     }
 
+    // 6. Bottoms Modular Fabric & Tailoring
     if (modMeshes.bottom) {
       const isBottomVisible = outfit?.bottomType !== "none";
       modMeshes.bottom.visible = isBottomVisible;
-      if (isBottomVisible && outfit?.bottomColor && modMeshes.bottom.material) {
+      if (isBottomVisible && modMeshes.bottom.material) {
         const mat = (
           Array.isArray(modMeshes.bottom.material)
             ? modMeshes.bottom.material[0]
             : modMeshes.bottom.material
         ) as THREE.MeshStandardMaterial;
-        if (mat && mat.color) mat.color.set(outfit.bottomColor);
+        if (mat) {
+          if (outfit?.bottomColor) mat.color.set(outfit.bottomColor);
+          mat.envMapIntensity = 0.8;
+          mat.roughness = 0.82;
+          mat.metalness = 0.02;
+        }
       }
     }
 
+    // 7. Footwear Modular Styling (Sneakers vs Loafers)
     if (modMeshes.footwear) {
       const isShoesVisible = outfit?.shoesType !== "none";
       modMeshes.footwear.visible = isShoesVisible;
-      if (isShoesVisible && outfit?.shoesColor && modMeshes.footwear.material) {
+      if (isShoesVisible && modMeshes.footwear.material) {
         const mat = (
           Array.isArray(modMeshes.footwear.material)
             ? modMeshes.footwear.material[0]
             : modMeshes.footwear.material
         ) as THREE.MeshStandardMaterial;
-        if (mat && mat.color) mat.color.set(outfit.shoesColor);
+        if (mat) {
+          if (outfit?.shoesColor) mat.color.set(outfit.shoesColor);
+          mat.envMapIntensity = 1.0;
+          if (outfit?.shoesType === "loafers") {
+            mat.roughness = 0.32;
+            mat.metalness = 0.08;
+          } else {
+            mat.roughness = 0.72;
+            mat.metalness = 0.02;
+          }
+        }
       }
     }
   };
@@ -747,6 +910,31 @@ export function ThreeMannequinViewer({
       );
       modelBonesRef.current = bones;
       baselinesRef.current = baselines;
+
+      // Anchor Modular Procedural Groups to Head Bone
+      const headBone = bones.head;
+      if (headBone) {
+        if (modularHairGroupRef.current && modularHairGroupRef.current.parent) {
+          modularHairGroupRef.current.parent.remove(modularHairGroupRef.current);
+        }
+        if (modularGlassesGroupRef.current && modularGlassesGroupRef.current.parent) {
+          modularGlassesGroupRef.current.parent.remove(modularGlassesGroupRef.current);
+        }
+
+        const hairGrp = new THREE.Group();
+        hairGrp.name = "ModularHairGroup";
+        // Precision offset to crown of skull
+        hairGrp.position.set(0, 0.08, 0.012);
+        headBone.add(hairGrp);
+        modularHairGroupRef.current = hairGrp;
+
+        const glassesGrp = new THREE.Group();
+        glassesGrp.name = "ModularGlassesGroup";
+        // Precision offset to bridge of nose
+        glassesGrp.position.set(0, 0.075, 0.015);
+        headBone.add(glassesGrp);
+        modularGlassesGroupRef.current = glassesGrp;
+      }
 
       const meshes: {
         head?: THREE.SkinnedMesh;
