@@ -10,6 +10,13 @@ import {
   createSneakerAccentsGroup,
   createLoaferAccentsGroup,
 } from "./GarmentGeometries";
+import {
+  getCachedCottonNormalMap,
+  getCachedOxfordNormalMap,
+  getCachedTwillNormalMap,
+  getCachedLeatherNormalMap,
+  getCachedSkinNormalMap,
+} from "./FabricTextures";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
   createHairMaterial,
@@ -154,6 +161,9 @@ export function ThreeMannequinViewer({
     glasses?: THREE.SkinnedMesh;
     teeth?: THREE.SkinnedMesh;
     eyes: THREE.SkinnedMesh[];
+    anatomicalTorso?: THREE.SkinnedMesh;
+    anatomicalLegs?: THREE.SkinnedMesh;
+    anatomicalFeet?: THREE.SkinnedMesh;
   }>({ eyes: [] });
   const animFrameRef = useRef<number | null>(null);
 
@@ -314,7 +324,7 @@ export function ThreeMannequinViewer({
     scene.add(ambientLight);
 
     // Key Light (warm, soft shadows from top front-right)
-    const keyLight = new THREE.DirectionalLight(0xfff8ee, 1.45);
+    const keyLight = new THREE.DirectionalLight(0xfff8ee, 1.55);
     keyLight.position.set(2.2, 3.8, 3.2);
     keyLight.castShadow = true;
     keyLight.shadow.mapSize.width = 1024;
@@ -325,12 +335,12 @@ export function ThreeMannequinViewer({
     scene.add(keyLight);
 
     // Fill Light (cool, gentle fill from left)
-    const fillLight = new THREE.DirectionalLight(0xe8f0fe, 0.7);
+    const fillLight = new THREE.DirectionalLight(0xe8f0fe, 0.75);
     fillLight.position.set(-3.0, 1.8, 2.0);
     scene.add(fillLight);
 
     // Rim / Back Light (crisp silhouette separation from behind)
-    const rimLight = new THREE.DirectionalLight(0xffffff, 1.1);
+    const rimLight = new THREE.DirectionalLight(0xffffff, 1.25);
     rimLight.position.set(0, 3.0, -3.0);
     scene.add(rimLight);
 
@@ -652,33 +662,33 @@ export function ThreeMannequinViewer({
     const modMeshes = modularMeshesRef.current;
     if (!modMeshes.head && !modMeshes.body) return;
 
-    // 1. Skin & Body Velvet Studio PBR Tuning
-    if (modMeshes.head?.material) {
-      const mat = (
-        Array.isArray(modMeshes.head.material)
-          ? modMeshes.head.material[0]
-          : modMeshes.head.material
-      ) as THREE.MeshStandardMaterial;
-      if (mat) {
-        if (mat.color) mat.color.set(skinToneHex);
-        mat.roughness = 0.64;
-        mat.metalness = 0.0;
-        mat.envMapIntensity = 0.85;
+    // 1. Skin & Anatomical Base PBR Tuning
+    const skinNorm = getCachedSkinNormalMap();
+    const skinMeshes = [
+      modMeshes.head,
+      modMeshes.body,
+      modMeshes.anatomicalTorso,
+      modMeshes.anatomicalLegs,
+      modMeshes.anatomicalFeet,
+    ];
+
+    skinMeshes.forEach((mesh) => {
+      if (mesh?.material) {
+        const mat = (
+          Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
+        ) as THREE.MeshStandardMaterial;
+        if (mat) {
+          if (mat.color) mat.color.set(skinToneHex);
+          mat.roughness = 0.58;
+          mat.metalness = 0.0;
+          mat.envMapIntensity = 0.92;
+          if (skinNorm && !mat.map) {
+            mat.normalMap = skinNorm;
+            mat.normalScale.set(0.18, 0.18);
+          }
+        }
       }
-    }
-    if (modMeshes.body?.material) {
-      const mat = (
-        Array.isArray(modMeshes.body.material)
-          ? modMeshes.body.material[0]
-          : modMeshes.body.material
-      ) as THREE.MeshStandardMaterial;
-      if (mat) {
-        if (mat.color) mat.color.set(skinToneHex);
-        mat.roughness = 0.64;
-        mat.metalness = 0.0;
-        mat.envMapIntensity = 0.85;
-      }
-    }
+    });
 
     // 2. Eyes & Teeth High-Specular Realism
     if (modMeshes.eyes && modMeshes.eyes.length > 0) {
@@ -690,7 +700,7 @@ export function ThreeMannequinViewer({
           if (mat) {
             mat.roughness = 0.05;
             mat.metalness = 0.02;
-            mat.envMapIntensity = 1.4;
+            mat.envMapIntensity = 1.5;
           }
         }
       });
@@ -703,9 +713,9 @@ export function ThreeMannequinViewer({
           : modMeshes.teeth.material
       ) as THREE.MeshStandardMaterial;
       if (mat) {
-        mat.roughness = 0.35;
+        mat.roughness = 0.28;
         mat.metalness = 0.0;
-        mat.color.set("#FFFDF9");
+        mat.color.set("#FFFDF8");
       }
     }
 
@@ -795,123 +805,234 @@ export function ThreeMannequinViewer({
       }
     }
 
+    const isTopNone = outfit?.topType === "none";
     if (modMeshes.top) {
-      const isTopVisible = outfit?.topType !== "none";
-      modMeshes.top.visible = isTopVisible;
-      if (isTopVisible && modMeshes.top.material) {
-        const mat = (
-          Array.isArray(modMeshes.top.material) ? modMeshes.top.material[0] : modMeshes.top.material
-        ) as THREE.MeshStandardMaterial;
-        if (mat) {
-          if (outfit?.topColor) mat.color.set(outfit.topColor);
-          mat.envMapIntensity = 0.85;
+      if (isTopNone) {
+        // When Top is 'none', outer top is hidden and anatomicalTorso displays bare skin!
+        modMeshes.top.visible = false;
+        if (modMeshes.anatomicalTorso) {
+          modMeshes.anatomicalTorso.visible = true;
+        }
+      } else {
+        modMeshes.top.visible = true;
+        if (modMeshes.anatomicalTorso) {
+          modMeshes.anatomicalTorso.visible = false;
+        }
 
-          if (outfit?.topType === "shirt") {
-            mat.roughness = 0.58;
-            mat.metalness = 0.02;
-            if (topAccentsGrp) {
-              topAccentsGrp.add(createShirtAccentsGroup(mat));
+        if (modMeshes.top.material) {
+          const mat = (
+            Array.isArray(modMeshes.top.material) ? modMeshes.top.material[0] : modMeshes.top.material
+          ) as THREE.MeshStandardMaterial;
+          if (mat) {
+            // Clear baked GLB texture so user outfit color is true & vibrant
+            mat.map = null;
+            if (outfit?.topColor) mat.color.set(outfit.topColor);
+            mat.envMapIntensity = 0.9;
+
+            if (outfit?.topType === "shirt") {
+              mat.roughness = 0.52;
+              mat.metalness = 0.02;
+              const oxfordNorm = getCachedOxfordNormalMap();
+              if (oxfordNorm) {
+                mat.normalMap = oxfordNorm;
+                mat.normalScale.set(0.45, 0.45);
+              }
+              if (topAccentsGrp) {
+                topAccentsGrp.add(createShirtAccentsGroup(mat));
+              }
+            } else if (outfit?.topType === "jacket") {
+              mat.roughness = 0.85;
+              mat.metalness = 0.04;
+              const twillNorm = getCachedTwillNormalMap();
+              if (twillNorm) {
+                mat.normalMap = twillNorm;
+                mat.normalScale.set(0.65, 0.65);
+              }
+              if (topAccentsGrp) {
+                topAccentsGrp.add(createJacketAccentsGroup(mat));
+              }
+            } else {
+              // "tee" - clean relaxed cotton crewneck
+              mat.roughness = 0.80;
+              mat.metalness = 0.01;
+              const cottonNorm = getCachedCottonNormalMap();
+              if (cottonNorm) {
+                mat.normalMap = cottonNorm;
+                mat.normalScale.set(0.4, 0.4);
+              }
             }
-          } else if (outfit?.topType === "jacket") {
-            mat.roughness = 0.88;
-            mat.metalness = 0.05;
-            if (topAccentsGrp) {
-              topAccentsGrp.add(createJacketAccentsGroup(mat));
-            }
-          } else {
-            // "tee" - clean relaxed cotton crewneck
-            mat.roughness = 0.82;
-            mat.metalness = 0.01;
+            mat.needsUpdate = true;
           }
         }
       }
     }
 
-    // 6. Bottoms Modular Fabric, Tailoring & Shorts Cutoff
+    // 6. Bottoms Modular Fabric, Tailoring & Shorts / None Cutoff
     const cuffL = modularShortsLeftCuffRef.current;
     const cuffR = modularShortsRightCuffRef.current;
     if (cuffL) while (cuffL.children.length > 0) cuffL.remove(cuffL.children[0]);
     if (cuffR) while (cuffR.children.length > 0) cuffR.remove(cuffR.children[0]);
 
     if (modMeshes.bottom) {
-      const isBottomVisible = outfit?.bottomType !== "none";
-      modMeshes.bottom.visible = isBottomVisible;
-      if (isBottomVisible && modMeshes.bottom.material) {
-        const mat = (
-          Array.isArray(modMeshes.bottom.material)
-            ? modMeshes.bottom.material[0]
-            : modMeshes.bottom.material
-        ) as THREE.MeshStandardMaterial;
-        if (mat) {
-          if (outfit?.bottomColor) mat.color.set(outfit.bottomColor);
-          mat.envMapIntensity = 0.8;
+      const isBottomNone = outfit?.bottomType === "none";
+      const isShorts = outfit?.bottomType === "shorts";
+      const isChinos = outfit?.bottomType === "wide_chinos";
 
-          if (outfit?.bottomType === "shorts") {
-            // Tailored Bermuda Shorts: Clip trousers cleanly right above the knee
-            mat.roughness = 0.82;
-            mat.metalness = 0.02;
-            modMeshes.bottom.scale.set(1.0, 1.0, 1.0);
+      // Position of knee for shorts cutoff
+      const kneeWorldPos = new THREE.Vector3();
+      const bones = modelBonesRef.current;
+      if (bones.leftLeg) {
+        bones.leftLeg.getWorldPosition(kneeWorldPos);
+      } else {
+        kneeWorldPos.set(0, -1.12 + 0.62 * heightScale, 0);
+      }
+      const kneeCutoffY = kneeWorldPos.y + 0.04;
+      const thighCutoffY = kneeWorldPos.y + 0.28;
 
-            const kneeWorldPos = new THREE.Vector3();
-            const bones = modelBonesRef.current;
-            if (bones.leftLeg) {
-              bones.leftLeg.getWorldPosition(kneeWorldPos);
-            } else {
-              kneeWorldPos.set(0, -1.12 + 0.62 * heightScale, 0);
-            }
-            const kneeCutoffY = kneeWorldPos.y + 0.04;
-            const shortsPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -kneeCutoffY);
-            mat.clippingPlanes = [shortsPlane];
+      const botMat = (
+        Array.isArray(modMeshes.bottom.material)
+          ? modMeshes.bottom.material[0]
+          : modMeshes.bottom.material
+      ) as THREE.MeshStandardMaterial;
 
-            if (cuffL) cuffL.add(createShortsCuffGroup(mat));
-            if (cuffR) cuffR.add(createShortsCuffGroup(mat));
-          } else if (outfit?.bottomType === "wide_chinos") {
-            mat.clippingPlanes = null;
-            mat.roughness = 0.86;
-            mat.metalness = 0.01;
-            // Relaxed wide-leg drape pooling
+      const legsMat = modMeshes.anatomicalLegs?.material
+        ? ((Array.isArray(modMeshes.anatomicalLegs.material)
+            ? modMeshes.anatomicalLegs.material[0]
+            : modMeshes.anatomicalLegs.material) as THREE.MeshStandardMaterial)
+        : null;
+
+      if (isBottomNone) {
+        // When bottom is "none", render sleek athletic boxer trunks at pelvis and bare skin legs below!
+        modMeshes.bottom.visible = true;
+        modMeshes.bottom.scale.set(1.0, 1.0, 1.0);
+        if (botMat) {
+          botMat.map = null;
+          botMat.color.set("#22242a");
+          botMat.roughness = 0.85;
+          botMat.metalness = 0.02;
+          const cottonNorm = getCachedCottonNormalMap();
+          if (cottonNorm) {
+            botMat.normalMap = cottonNorm;
+            botMat.normalScale.set(0.35, 0.35);
+          }
+          // High-thigh cutoff plane for athletic boxer trunks
+          botMat.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), -thighCutoffY)];
+          botMat.needsUpdate = true;
+        }
+
+        if (modMeshes.anatomicalLegs && legsMat) {
+          modMeshes.anatomicalLegs.visible = true;
+          // Inverted plane: display bare skin legs below the trunks down to the ankles!
+          legsMat.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, -1, 0), thighCutoffY)];
+          legsMat.needsUpdate = true;
+        }
+      } else if (isShorts) {
+        // Tailored Bermuda Shorts: Outer shorts clipped at knee, exposing bare anatomical legs below!
+        modMeshes.bottom.visible = true;
+        modMeshes.bottom.scale.set(1.0, 1.0, 1.0);
+        if (botMat) {
+          botMat.map = null;
+          if (outfit?.bottomColor) botMat.color.set(outfit.bottomColor);
+          botMat.roughness = 0.82;
+          botMat.metalness = 0.02;
+          const twillNorm = getCachedTwillNormalMap();
+          if (twillNorm) {
+            botMat.normalMap = twillNorm;
+            botMat.normalScale.set(0.5, 0.5);
+          }
+          botMat.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, 1, 0), -kneeCutoffY)];
+          botMat.needsUpdate = true;
+        }
+
+        if (cuffL) cuffL.add(createShortsCuffGroup(botMat));
+        if (cuffR) cuffR.add(createShortsCuffGroup(botMat));
+
+        if (modMeshes.anatomicalLegs && legsMat) {
+          modMeshes.anatomicalLegs.visible = true;
+          // Inverted plane: display bare skin legs below the shorts!
+          legsMat.clippingPlanes = [new THREE.Plane(new THREE.Vector3(0, -1, 0), kneeCutoffY)];
+          legsMat.needsUpdate = true;
+        }
+      } else {
+        // Full-length trousers or wide chinos
+        modMeshes.bottom.visible = true;
+        if (botMat) {
+          botMat.map = null;
+          if (outfit?.bottomColor) botMat.color.set(outfit.bottomColor);
+          botMat.clippingPlanes = null;
+          const twillNorm = getCachedTwillNormalMap();
+          if (twillNorm) {
+            botMat.normalMap = twillNorm;
+            botMat.normalScale.set(0.5, 0.5);
+          }
+          if (isChinos) {
+            botMat.roughness = 0.86;
+            botMat.metalness = 0.01;
             modMeshes.bottom.scale.set(1.045, 1.0, 1.045);
           } else {
-            // "trousers" - tailored slim-straight
-            mat.clippingPlanes = null;
-            mat.roughness = 0.82;
-            mat.metalness = 0.02;
+            botMat.roughness = 0.82;
+            botMat.metalness = 0.02;
             modMeshes.bottom.scale.set(1.0, 1.0, 1.0);
           }
+          botMat.needsUpdate = true;
+        }
+
+        if (modMeshes.anatomicalLegs) {
+          modMeshes.anatomicalLegs.visible = false;
         }
       }
     }
 
-    // 7. Footwear Modular Styling (Sneakers vs Loafers)
+    // 7. Footwear Modular Styling (Sneakers vs Loafers vs Bare Feet)
     const shoeAccL = modularLeftShoeAccentsRef.current;
     const shoeAccR = modularRightShoeAccentsRef.current;
     if (shoeAccL) while (shoeAccL.children.length > 0) shoeAccL.remove(shoeAccL.children[0]);
     if (shoeAccR) while (shoeAccR.children.length > 0) shoeAccR.remove(shoeAccR.children[0]);
 
     if (modMeshes.footwear) {
-      const isShoesVisible = outfit?.shoesType !== "none";
-      modMeshes.footwear.visible = isShoesVisible;
-      if (isShoesVisible && modMeshes.footwear.material) {
-        const mat = (
-          Array.isArray(modMeshes.footwear.material)
-            ? modMeshes.footwear.material[0]
-            : modMeshes.footwear.material
-        ) as THREE.MeshStandardMaterial;
-        if (mat) {
-          if (outfit?.shoesColor) mat.color.set(outfit.shoesColor);
-          mat.envMapIntensity = 1.0;
+      const isShoesNone = outfit?.shoesType === "none";
+      if (isShoesNone) {
+        // When footwear is "none", render natural bare feet in skin tone
+        modMeshes.footwear.visible = false;
+        if (modMeshes.anatomicalFeet) {
+          modMeshes.anatomicalFeet.visible = true;
+        }
+      } else {
+        modMeshes.footwear.visible = true;
+        if (modMeshes.anatomicalFeet) {
+          modMeshes.anatomicalFeet.visible = false;
+        }
 
-          if (outfit?.shoesType === "loafers") {
-            mat.roughness = 0.32;
-            mat.metalness = 0.08;
-            if (shoeAccL) shoeAccL.add(createLoaferAccentsGroup(mat));
-            if (shoeAccR) shoeAccR.add(createLoaferAccentsGroup(mat));
-          } else {
-            // "sneakers"
-            mat.roughness = 0.72;
-            mat.metalness = 0.02;
-            if (shoeAccL) shoeAccL.add(createSneakerAccentsGroup(mat, "#FAFAFA"));
-            if (shoeAccR) shoeAccR.add(createSneakerAccentsGroup(mat, "#FAFAFA"));
+        if (modMeshes.footwear.material) {
+          const mat = (
+            Array.isArray(modMeshes.footwear.material)
+              ? modMeshes.footwear.material[0]
+              : modMeshes.footwear.material
+          ) as THREE.MeshStandardMaterial;
+          if (mat) {
+            mat.map = null;
+            if (outfit?.shoesColor) mat.color.set(outfit.shoesColor);
+            mat.envMapIntensity = 1.0;
+
+            const leatherNorm = getCachedLeatherNormalMap();
+            if (leatherNorm) {
+              mat.normalMap = leatherNorm;
+              mat.normalScale.set(0.4, 0.4);
+            }
+
+            if (outfit?.shoesType === "loafers") {
+              mat.roughness = 0.32;
+              mat.metalness = 0.08;
+              if (shoeAccL) shoeAccL.add(createLoaferAccentsGroup(mat));
+              if (shoeAccR) shoeAccR.add(createLoaferAccentsGroup(mat));
+            } else {
+              // "sneakers"
+              mat.roughness = 0.72;
+              mat.metalness = 0.02;
+              if (shoeAccL) shoeAccL.add(createSneakerAccentsGroup(mat, "#FAFAFA"));
+              if (shoeAccR) shoeAccR.add(createSneakerAccentsGroup(mat, "#FAFAFA"));
+            }
+            mat.needsUpdate = true;
           }
         }
       }
@@ -1076,6 +1197,9 @@ export function ThreeMannequinViewer({
         glasses?: THREE.SkinnedMesh;
         teeth?: THREE.SkinnedMesh;
         eyes: THREE.SkinnedMesh[];
+        anatomicalTorso?: THREE.SkinnedMesh;
+        anatomicalLegs?: THREE.SkinnedMesh;
+        anatomicalFeet?: THREE.SkinnedMesh;
       } = { eyes: [] };
 
       obj.traverse((child) => {
@@ -1102,6 +1226,55 @@ export function ThreeMannequinViewer({
           else if (name === "EyeLeft" || name === "EyeRight") meshes.eyes.push(mesh);
         }
       });
+
+      // Build Anatomical Base Layers to ensure the avatar is NEVER hollow or empty
+      if (meshes.top && meshes.top.parent) {
+        const torsoBase = meshes.top.clone();
+        torsoBase.name = "Anatomical_Torso_Base";
+        torsoBase.bind(meshes.top.skeleton, meshes.top.bindMatrix);
+        torsoBase.material = new THREE.MeshStandardMaterial({
+          roughness: 0.58,
+          metalness: 0.0,
+          envMapIntensity: 0.92,
+        });
+        torsoBase.castShadow = true;
+        torsoBase.receiveShadow = true;
+        torsoBase.visible = false;
+        meshes.top.parent.add(torsoBase);
+        meshes.anatomicalTorso = torsoBase;
+      }
+
+      if (meshes.bottom && meshes.bottom.parent) {
+        const legsBase = meshes.bottom.clone();
+        legsBase.name = "Anatomical_Legs_Base";
+        legsBase.bind(meshes.bottom.skeleton, meshes.bottom.bindMatrix);
+        legsBase.material = new THREE.MeshStandardMaterial({
+          roughness: 0.58,
+          metalness: 0.0,
+          envMapIntensity: 0.92,
+        });
+        legsBase.castShadow = true;
+        legsBase.receiveShadow = true;
+        legsBase.visible = false;
+        meshes.bottom.parent.add(legsBase);
+        meshes.anatomicalLegs = legsBase;
+      }
+
+      if (meshes.footwear && meshes.footwear.parent) {
+        const feetBase = meshes.footwear.clone();
+        feetBase.name = "Anatomical_Feet_Base";
+        feetBase.bind(meshes.footwear.skeleton, meshes.footwear.bindMatrix);
+        feetBase.material = new THREE.MeshStandardMaterial({
+          roughness: 0.62,
+          metalness: 0.0,
+          envMapIntensity: 0.92,
+        });
+        feetBase.castShadow = true;
+        feetBase.receiveShadow = true;
+        feetBase.visible = false;
+        meshes.footwear.parent.add(feetBase);
+        meshes.anatomicalFeet = feetBase;
+      }
 
       modularMeshesRef.current = meshes;
     }
