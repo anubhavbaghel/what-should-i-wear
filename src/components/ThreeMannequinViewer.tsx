@@ -3,6 +3,13 @@ import * as THREE from "three";
 import { RefreshCw, Plus, Minus, Undo2, Loader2 } from "lucide-react";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { cn } from "@/lib/utils";
+import {
+  createShirtAccentsGroup,
+  createJacketAccentsGroup,
+  createShortsCuffGroup,
+  createSneakerAccentsGroup,
+  createLoaferAccentsGroup,
+} from "./GarmentGeometries";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import {
   createHairMaterial,
@@ -129,6 +136,13 @@ export function ThreeMannequinViewer({
   const modularHairGroupRef = useRef<THREE.Group | null>(null);
   const modularGlassesGroupRef = useRef<THREE.Group | null>(null);
   const modularAttachmentAnchorRef = useRef<THREE.Group | null>(null);
+
+  // Modular Garment Silhouette Accents
+  const modularTopAccentsRef = useRef<THREE.Group | null>(null);
+  const modularShortsLeftCuffRef = useRef<THREE.Group | null>(null);
+  const modularShortsRightCuffRef = useRef<THREE.Group | null>(null);
+  const modularLeftShoeAccentsRef = useRef<THREE.Group | null>(null);
+  const modularRightShoeAccentsRef = useRef<THREE.Group | null>(null);
 
   const modularMeshesRef = useRef<{
     head?: THREE.SkinnedMesh;
@@ -278,6 +292,7 @@ export function ThreeMannequinViewer({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.localClippingEnabled = true;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.0;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -772,7 +787,14 @@ export function ThreeMannequinViewer({
       }
     }
 
-    // 5. Tops Modular Fabric & Styling
+    // 5. Tops Modular Fabric & Silhouette Accents
+    const topAccentsGrp = modularTopAccentsRef.current;
+    if (topAccentsGrp) {
+      while (topAccentsGrp.children.length > 0) {
+        topAccentsGrp.remove(topAccentsGrp.children[0]);
+      }
+    }
+
     if (modMeshes.top) {
       const isTopVisible = outfit?.topType !== "none";
       modMeshes.top.visible = isTopVisible;
@@ -782,15 +804,22 @@ export function ThreeMannequinViewer({
         ) as THREE.MeshStandardMaterial;
         if (mat) {
           if (outfit?.topColor) mat.color.set(outfit.topColor);
-          mat.envMapIntensity = 0.8;
+          mat.envMapIntensity = 0.85;
+
           if (outfit?.topType === "shirt") {
             mat.roughness = 0.58;
             mat.metalness = 0.02;
+            if (topAccentsGrp) {
+              topAccentsGrp.add(createShirtAccentsGroup(mat));
+            }
           } else if (outfit?.topType === "jacket") {
             mat.roughness = 0.88;
             mat.metalness = 0.05;
+            if (topAccentsGrp) {
+              topAccentsGrp.add(createJacketAccentsGroup(mat));
+            }
           } else {
-            // "tee"
+            // "tee" - clean relaxed cotton crewneck
             mat.roughness = 0.82;
             mat.metalness = 0.01;
           }
@@ -798,7 +827,12 @@ export function ThreeMannequinViewer({
       }
     }
 
-    // 6. Bottoms Modular Fabric & Tailoring
+    // 6. Bottoms Modular Fabric, Tailoring & Shorts Cutoff
+    const cuffL = modularShortsLeftCuffRef.current;
+    const cuffR = modularShortsRightCuffRef.current;
+    if (cuffL) while (cuffL.children.length > 0) cuffL.remove(cuffL.children[0]);
+    if (cuffR) while (cuffR.children.length > 0) cuffR.remove(cuffR.children[0]);
+
     if (modMeshes.bottom) {
       const isBottomVisible = outfit?.bottomType !== "none";
       modMeshes.bottom.visible = isBottomVisible;
@@ -811,13 +845,49 @@ export function ThreeMannequinViewer({
         if (mat) {
           if (outfit?.bottomColor) mat.color.set(outfit.bottomColor);
           mat.envMapIntensity = 0.8;
-          mat.roughness = 0.82;
-          mat.metalness = 0.02;
+
+          if (outfit?.bottomType === "shorts") {
+            // Tailored Bermuda Shorts: Clip trousers cleanly right above the knee
+            mat.roughness = 0.82;
+            mat.metalness = 0.02;
+            modMeshes.bottom.scale.set(1.0, 1.0, 1.0);
+
+            const kneeWorldPos = new THREE.Vector3();
+            const bones = modelBonesRef.current;
+            if (bones.leftLeg) {
+              bones.leftLeg.getWorldPosition(kneeWorldPos);
+            } else {
+              kneeWorldPos.set(0, -1.12 + 0.62 * heightScale, 0);
+            }
+            const kneeCutoffY = kneeWorldPos.y + 0.04;
+            const shortsPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -kneeCutoffY);
+            mat.clippingPlanes = [shortsPlane];
+
+            if (cuffL) cuffL.add(createShortsCuffGroup(mat));
+            if (cuffR) cuffR.add(createShortsCuffGroup(mat));
+          } else if (outfit?.bottomType === "wide_chinos") {
+            mat.clippingPlanes = null;
+            mat.roughness = 0.86;
+            mat.metalness = 0.01;
+            // Relaxed wide-leg drape pooling
+            modMeshes.bottom.scale.set(1.045, 1.0, 1.045);
+          } else {
+            // "trousers" - tailored slim-straight
+            mat.clippingPlanes = null;
+            mat.roughness = 0.82;
+            mat.metalness = 0.02;
+            modMeshes.bottom.scale.set(1.0, 1.0, 1.0);
+          }
         }
       }
     }
 
     // 7. Footwear Modular Styling (Sneakers vs Loafers)
+    const shoeAccL = modularLeftShoeAccentsRef.current;
+    const shoeAccR = modularRightShoeAccentsRef.current;
+    if (shoeAccL) while (shoeAccL.children.length > 0) shoeAccL.remove(shoeAccL.children[0]);
+    if (shoeAccR) while (shoeAccR.children.length > 0) shoeAccR.remove(shoeAccR.children[0]);
+
     if (modMeshes.footwear) {
       const isShoesVisible = outfit?.shoesType !== "none";
       modMeshes.footwear.visible = isShoesVisible;
@@ -830,12 +900,18 @@ export function ThreeMannequinViewer({
         if (mat) {
           if (outfit?.shoesColor) mat.color.set(outfit.shoesColor);
           mat.envMapIntensity = 1.0;
+
           if (outfit?.shoesType === "loafers") {
             mat.roughness = 0.32;
             mat.metalness = 0.08;
+            if (shoeAccL) shoeAccL.add(createLoaferAccentsGroup(mat));
+            if (shoeAccR) shoeAccR.add(createLoaferAccentsGroup(mat));
           } else {
+            // "sneakers"
             mat.roughness = 0.72;
             mat.metalness = 0.02;
+            if (shoeAccL) shoeAccL.add(createSneakerAccentsGroup(mat, "#FAFAFA"));
+            if (shoeAccR) shoeAccR.add(createSneakerAccentsGroup(mat, "#FAFAFA"));
           }
         }
       }
@@ -934,6 +1010,60 @@ export function ThreeMannequinViewer({
         glassesGrp.position.set(0, 0.075, 0.015);
         headBone.add(glassesGrp);
         modularGlassesGroupRef.current = glassesGrp;
+      }
+
+      // Anchor Modular Top Accents to Spine2 (Chest)
+      const spine2Bone = bones.spine2;
+      if (spine2Bone) {
+        if (modularTopAccentsRef.current && modularTopAccentsRef.current.parent) {
+          modularTopAccentsRef.current.parent.remove(modularTopAccentsRef.current);
+        }
+        const topGrp = new THREE.Group();
+        topGrp.name = "ModularTopAccentsGroup";
+        spine2Bone.add(topGrp);
+        modularTopAccentsRef.current = topGrp;
+      }
+
+      // Anchor Modular Shorts Cuffs to Left & Right UpLeg
+      if (bones.leftUpLeg) {
+        if (modularShortsLeftCuffRef.current && modularShortsLeftCuffRef.current.parent) {
+          modularShortsLeftCuffRef.current.parent.remove(modularShortsLeftCuffRef.current);
+        }
+        const cuffL = new THREE.Group();
+        cuffL.name = "ModularShortsLeftCuff";
+        cuffL.position.set(0, 0.4, 0);
+        bones.leftUpLeg.add(cuffL);
+        modularShortsLeftCuffRef.current = cuffL;
+      }
+      if (bones.rightUpLeg) {
+        if (modularShortsRightCuffRef.current && modularShortsRightCuffRef.current.parent) {
+          modularShortsRightCuffRef.current.parent.remove(modularShortsRightCuffRef.current);
+        }
+        const cuffR = new THREE.Group();
+        cuffR.name = "ModularShortsRightCuff";
+        cuffR.position.set(0, 0.4, 0);
+        bones.rightUpLeg.add(cuffR);
+        modularShortsRightCuffRef.current = cuffR;
+      }
+
+      // Anchor Modular Footwear Accents to Feet
+      if (bones.leftFoot) {
+        if (modularLeftShoeAccentsRef.current && modularLeftShoeAccentsRef.current.parent) {
+          modularLeftShoeAccentsRef.current.parent.remove(modularLeftShoeAccentsRef.current);
+        }
+        const shoeL = new THREE.Group();
+        shoeL.name = "ModularLeftShoeAccents";
+        bones.leftFoot.add(shoeL);
+        modularLeftShoeAccentsRef.current = shoeL;
+      }
+      if (bones.rightFoot) {
+        if (modularRightShoeAccentsRef.current && modularRightShoeAccentsRef.current.parent) {
+          modularRightShoeAccentsRef.current.parent.remove(modularRightShoeAccentsRef.current);
+        }
+        const shoeR = new THREE.Group();
+        shoeR.name = "ModularRightShoeAccents";
+        bones.rightFoot.add(shoeR);
+        modularRightShoeAccentsRef.current = shoeR;
       }
 
       const meshes: {
